@@ -1,6 +1,7 @@
 package transfer
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"strings"
@@ -8,6 +9,8 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	capabilitytypes "github.com/cosmos/cosmos-sdk/x/capability/types"
+
+	errorsmod "cosmossdk.io/errors"
 
 	"github.com/cosmos/ibc-go/v6/modules/apps/transfer/keeper"
 	"github.com/cosmos/ibc-go/v6/modules/apps/transfer/types"
@@ -227,6 +230,13 @@ func (im IBCModule) OnAcknowledgementPacket(
 	var data types.FungibleTokenPacketData
 	if err := types.ModuleCdc.UnmarshalJSON(packet.GetData(), &data); err != nil {
 		return sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "cannot unmarshal ICS-20 transfer packet data: %s", err.Error())
+	}
+
+	// Verify that the acknowledgmenet serializes and deserializes to JSON determinstically.
+	// See https://github.com/cosmos/ibc-go/security/advisories/GHSA-jg6f-48ff-5xrw
+	bz := types.ModuleCdc.MustMarshalJSON(&ack)
+	if !bytes.Equal(bz, acknowledgement) {
+		return errorsmod.Wrapf(sdkerrors.ErrInvalidType, "acknowledgement did not marshal to expected bytes: %X ≠ %X", bz, acknowledgement)
 	}
 
 	if err := im.keeper.OnAcknowledgementPacket(ctx, packet, data, ack); err != nil {

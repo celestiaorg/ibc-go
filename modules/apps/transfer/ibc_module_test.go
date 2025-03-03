@@ -1,14 +1,18 @@
 package transfer_test
 
 import (
+	"errors"
 	"math"
 
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	capabilitytypes "github.com/cosmos/cosmos-sdk/x/capability/types"
 
 	"github.com/cosmos/ibc-go/v6/modules/apps/transfer"
 	"github.com/cosmos/ibc-go/v6/modules/apps/transfer/types"
 	channeltypes "github.com/cosmos/ibc-go/v6/modules/core/04-channel/types"
 	host "github.com/cosmos/ibc-go/v6/modules/core/24-host"
+	"github.com/cosmos/ibc-go/v6/modules/core/exported"
 	ibctesting "github.com/cosmos/ibc-go/v6/testing"
 )
 
@@ -235,6 +239,294 @@ func (suite *TransferTestSuite) TestOnChanOpenAck() {
 				suite.Require().NoError(err)
 			} else {
 				suite.Require().Error(err)
+			}
+		})
+	}
+}
+
+func (suite *TransferTestSuite) TestOnRecvPacket() {
+	// This test suite mostly covers the top-level logic of the ibc module OnRecvPacket function
+	// The core logic is covered in keeper OnRecvPacket
+	var (
+		packet channeltypes.Packet
+		path   *ibctesting.Path
+	)
+	testCases := []struct {
+		name     string
+		malleate func()
+		expAck   exported.Acknowledgement
+	}{
+		{
+			"success", func() {}, channeltypes.NewResultAcknowledgement([]byte{byte(1)}),
+		},
+		{
+			"failure: invalid packet data bytes",
+			func() {
+				packet.Data = []byte("invalid data")
+			},
+			channeltypes.NewErrorAcknowledgement(sdkerrors.ErrInvalidType),
+		},
+		{
+			"failure: receive disabled",
+			func() {
+				suite.chainB.GetSimApp().TransferKeeper.SetParams(suite.chainB.GetContext(), types.Params{ReceiveEnabled: false})
+			},
+			channeltypes.NewErrorAcknowledgement(types.ErrReceiveDisabled),
+		},
+	}
+
+	for _, tc := range testCases {
+		suite.Run(tc.name, func() {
+			suite.SetupTest() // reset
+
+			path = NewTransferPath(suite.chainA, suite.chainB)
+			suite.coordinator.Setup(path)
+
+			coin := sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100))
+
+			packetData := types.NewFungibleTokenPacketData(
+				coin.Denom,
+				coin.Amount.String(),
+				suite.chainA.SenderAccount.GetAddress().String(),
+				suite.chainB.SenderAccount.GetAddress().String(),
+				"",
+			)
+
+			seq := uint64(1)
+			packet = channeltypes.NewPacket(packetData.GetBytes(), seq, path.EndpointA.ChannelConfig.PortID, path.EndpointA.ChannelID, path.EndpointB.ChannelConfig.PortID, path.EndpointB.ChannelID, suite.chainA.GetTimeoutHeight(), 0)
+
+			ctx := suite.chainB.GetContext()
+			cbs, ok := suite.chainB.App.GetIBCKeeper().PortKeeper.Router.GetRoute(ibctesting.TransferPort)
+			suite.Require().True(ok)
+
+			tc.malleate() // change fields in packet
+
+			ack := cbs.OnRecvPacket(ctx, packet, suite.chainB.SenderAccount.GetAddress())
+
+			suite.Require().Equal(tc.expAck, ack)
+		})
+	}
+}
+
+func (suite *TransferTestSuite) TestOnAcknowledgePacket() {
+	var (
+		path   *ibctesting.Path
+		packet channeltypes.Packet
+		ack    []byte
+	)
+
+	testCases := []struct {
+		name      string
+		malleate  func()
+		expError  error
+		expRefund bool
+	}{
+		{
+			"success",
+			func() {},
+			nil,
+			false,
+		},
+		{
+			"success: refund coins",
+			func() {
+				ack = channeltypes.NewErrorAcknowledgement(sdkerrors.ErrInsufficientFunds).Acknowledgement()
+			},
+			nil,
+			true,
+		},
+		{
+			"cannot refund ack on non-existent channel",
+			func() {
+				ack = channeltypes.NewErrorAcknowledgement(sdkerrors.ErrInsufficientFunds).Acknowledgement()
+
+				packet.SourceChannel = "channel-100"
+			},
+			errors.New("unable to unescrow tokens"),
+			false,
+		},
+		{
+			"invalid packet data",
+			func() {
+				packet.Data = []byte("invalid data")
+			},
+			sdkerrors.ErrUnknownRequest,
+			false,
+		},
+		{
+			"invalid acknowledgement",
+			func() {
+				ack = []byte("invalid ack")
+			},
+			sdkerrors.ErrUnknownRequest,
+			false,
+		},
+		{
+			"cannot refund already acknowledged packet",
+			func() {
+				ack = channeltypes.NewErrorAcknowledgement(sdkerrors.ErrInsufficientFunds).Acknowledgement()
+
+				cbs, ok := suite.chainA.App.GetIBCKeeper().PortKeeper.Router.GetRoute(ibctesting.TransferPort)
+				suite.Require().True(ok)
+
+				suite.Require().NoError(cbs.OnAcknowledgementPacket(suite.chainA.GetContext(), packet, ack, suite.chainA.SenderAccount.GetAddress()))
+			},
+			errors.New("unable to unescrow tokens"),
+			false,
+		},
+		{
+			// See https://github.com/cosmos/ibc-go/security/advisories/GHSA-jg6f-48ff-5xrw
+			"non-deterministic JSON ack serialization should return an error",
+			func() {
+				// Create a valid acknowledgement using deterministic serialization.
+				ack = channeltypes.NewResultAcknowledgement([]byte{byte(1)}).Acknowledgement()
+				// Introduce non-determinism: insert an extra space after the first character '{'
+				// This will deserialize correctly but fail to re-serialize to the expected bytes.
+				if len(ack) > 0 && ack[0] == '{' {
+					ack = []byte("{ " + string(ack[1:]))
+				}
+			},
+			errors.New("acknowledgement did not marshal to expected bytes"),
+			false,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		suite.Run(tc.name, func() {
+			suite.SetupTest() // reset
+
+			path = NewTransferPath(suite.chainA, suite.chainB)
+			suite.coordinator.Setup(path)
+
+			timeoutHeight := suite.chainA.GetTimeoutHeight()
+			msg := types.NewMsgTransfer(
+				path.EndpointA.ChannelConfig.PortID,
+				path.EndpointA.ChannelID,
+				ibctesting.TestCoin,
+				suite.chainA.SenderAccount.GetAddress().String(),
+				suite.chainB.SenderAccount.GetAddress().String(),
+				timeoutHeight,
+				0,
+				"",
+			)
+			res, err := suite.chainA.SendMsgs(msg)
+			suite.Require().NoError(err) // message committed
+
+			packet, err = ibctesting.ParsePacketFromEvents(res.GetEvents())
+			suite.Require().NoError(err)
+
+			cbs, ok := suite.chainA.App.GetIBCKeeper().PortKeeper.Router.GetRoute(ibctesting.TransferPort)
+			suite.Require().True(ok)
+
+			ack = channeltypes.NewResultAcknowledgement([]byte{byte(1)}).Acknowledgement()
+
+			tc.malleate() // change fields in packet
+
+			err = cbs.OnAcknowledgementPacket(suite.chainA.GetContext(), packet, ack, suite.chainA.SenderAccount.GetAddress())
+
+			if tc.expError == nil {
+				suite.Require().NoError(err)
+
+				if tc.expRefund {
+					escrowAddress := types.GetEscrowAddress(packet.GetSourcePort(), packet.GetSourceChannel())
+					escrowBalanceAfter := suite.chainA.GetSimApp().BankKeeper.GetBalance(suite.chainA.GetContext(), escrowAddress, sdk.DefaultBondDenom)
+					suite.Require().Equal(sdk.NewInt(0), escrowBalanceAfter.Amount)
+				}
+			} else {
+				suite.Require().Error(err)
+				suite.Require().Contains(err.Error(), tc.expError.Error())
+			}
+		})
+	}
+}
+
+func (suite *TransferTestSuite) TestOnTimeoutPacket() {
+	var path *ibctesting.Path
+	var packet channeltypes.Packet
+
+	testCases := []struct {
+		name           string
+		coinsToSendToB sdk.Coin
+		malleate       func()
+		expError       error
+	}{
+		{
+			"success",
+			ibctesting.TestCoin,
+			func() {},
+			nil,
+		},
+		{
+			"non-existent channel",
+			ibctesting.TestCoin,
+			func() {
+				packet.SourceChannel = "channel-100"
+			},
+			errors.New("unable to unescrow tokens"),
+		},
+		{
+			"invalid packet data",
+			ibctesting.TestCoin,
+			func() {
+				packet.Data = []byte("invalid data")
+			},
+			sdkerrors.ErrUnknownRequest,
+		},
+		{
+			"already timed-out packet",
+			ibctesting.TestCoin,
+			func() {
+				cbs, ok := suite.chainA.App.GetIBCKeeper().PortKeeper.Router.GetRoute(ibctesting.TransferPort)
+				suite.Require().True(ok)
+
+				suite.Require().NoError(cbs.OnTimeoutPacket(suite.chainA.GetContext(), packet, suite.chainA.SenderAccount.GetAddress()))
+			},
+			errors.New("unable to unescrow tokens"),
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		suite.Run(tc.name, func() {
+			suite.SetupTest() // reset
+
+			path = NewTransferPath(suite.chainA, suite.chainB)
+			suite.coordinator.Setup(path)
+
+			timeoutHeight := suite.chainA.GetTimeoutHeight()
+			msg := types.NewMsgTransfer(
+				path.EndpointA.ChannelConfig.PortID,
+				path.EndpointA.ChannelID,
+				tc.coinsToSendToB,
+				suite.chainA.SenderAccount.GetAddress().String(),
+				suite.chainB.SenderAccount.GetAddress().String(),
+				timeoutHeight,
+				0,
+				"",
+			)
+			res, err := suite.chainA.SendMsgs(msg)
+			suite.Require().NoError(err) // message committed
+
+			packet, err = ibctesting.ParsePacketFromEvents(res.GetEvents())
+			suite.Require().NoError(err)
+
+			cbs, ok := suite.chainA.App.GetIBCKeeper().PortKeeper.Router.GetRoute(ibctesting.TransferPort)
+			suite.Require().True(ok)
+
+			tc.malleate() // change fields in packet
+
+			err = cbs.OnTimeoutPacket(suite.chainA.GetContext(), packet, suite.chainA.SenderAccount.GetAddress())
+
+			if tc.expError == nil {
+				suite.Require().NoError(err)
+
+				escrowAddress := types.GetEscrowAddress(packet.GetSourcePort(), packet.GetSourceChannel())
+				escrowBalanceAfter := suite.chainA.GetSimApp().BankKeeper.GetBalance(suite.chainA.GetContext(), escrowAddress, sdk.DefaultBondDenom)
+				suite.Require().Equal(sdk.NewInt(0), escrowBalanceAfter.Amount)
+			} else {
+				suite.Require().Error(err)
+				suite.Require().Contains(err.Error(), tc.expError.Error())
 			}
 		})
 	}
