@@ -2,6 +2,7 @@ package simapp
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -249,7 +250,9 @@ type SimApp struct {
 func init() {
 	userHomeDir, err := os.UserHomeDir()
 	if err != nil {
-		panic(err)
+		// The user home directory is not available in the Vercel Go runtime so
+		// print a warning and proceed.
+		fmt.Printf("Warning: Error getting user home directory: %v\n", err)
 	}
 
 	DefaultNodeHome = filepath.Join(userHomeDir, ".simapp")
