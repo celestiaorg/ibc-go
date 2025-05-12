@@ -178,6 +178,8 @@
     - [QueryConnectionChannelsResponse](#ibc.core.channel.v1.QueryConnectionChannelsResponse)
     - [QueryNextSequenceReceiveRequest](#ibc.core.channel.v1.QueryNextSequenceReceiveRequest)
     - [QueryNextSequenceReceiveResponse](#ibc.core.channel.v1.QueryNextSequenceReceiveResponse)
+    - [QueryNextSequenceSendRequest](#ibc.core.channel.v1.QueryNextSequenceSendRequest)
+    - [QueryNextSequenceSendResponse](#ibc.core.channel.v1.QueryNextSequenceSendResponse)
     - [QueryPacketAcknowledgementRequest](#ibc.core.channel.v1.QueryPacketAcknowledgementRequest)
     - [QueryPacketAcknowledgementResponse](#ibc.core.channel.v1.QueryPacketAcknowledgementResponse)
     - [QueryPacketAcknowledgementsRequest](#ibc.core.channel.v1.QueryPacketAcknowledgementsRequest)
@@ -2655,6 +2657,41 @@ Query/QueryNextSequenceReceiveResponse RPC method
 
 
 
+<a name="ibc.core.channel.v1.QueryNextSequenceSendRequest"></a>
+
+### QueryNextSequenceSendRequest
+QueryNextSequenceSendRequest is the request type for the
+Query/QueryNextSequenceSend RPC method
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| `port_id` | [string](#string) |  | port unique identifier |
+| `channel_id` | [string](#string) |  | channel unique identifier |
+
+
+
+
+
+
+<a name="ibc.core.channel.v1.QueryNextSequenceSendResponse"></a>
+
+### QueryNextSequenceSendResponse
+QueryNextSequenceSendResponse is the request type for the
+Query/QueryNextSequenceSend RPC method
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| `next_sequence_send` | [uint64](#uint64) |  | next sequence send number |
+| `proof` | [bytes](#bytes) |  | merkle proof of existence |
+| `proof_height` | [ibc.core.client.v1.Height](#ibc.core.client.v1.Height) |  | height at which the proof was retrieved |
+
+
+
+
+
+
 <a name="ibc.core.channel.v1.QueryPacketAcknowledgementRequest"></a>
 
 ### QueryPacketAcknowledgementRequest
@@ -2935,6 +2972,7 @@ Query provides defines the gRPC querier service
 | `UnreceivedPackets` | [QueryUnreceivedPacketsRequest](#ibc.core.channel.v1.QueryUnreceivedPacketsRequest) | [QueryUnreceivedPacketsResponse](#ibc.core.channel.v1.QueryUnreceivedPacketsResponse) | UnreceivedPackets returns all the unreceived IBC packets associated with a channel and sequences. | GET|/ibc/core/channel/v1/channels/{channel_id}/ports/{port_id}/packet_commitments/{packet_commitment_sequences}/unreceived_packets|
 | `UnreceivedAcks` | [QueryUnreceivedAcksRequest](#ibc.core.channel.v1.QueryUnreceivedAcksRequest) | [QueryUnreceivedAcksResponse](#ibc.core.channel.v1.QueryUnreceivedAcksResponse) | UnreceivedAcks returns all the unreceived IBC acknowledgements associated with a channel and sequences. | GET|/ibc/core/channel/v1/channels/{channel_id}/ports/{port_id}/packet_commitments/{packet_ack_sequences}/unreceived_acks|
 | `NextSequenceReceive` | [QueryNextSequenceReceiveRequest](#ibc.core.channel.v1.QueryNextSequenceReceiveRequest) | [QueryNextSequenceReceiveResponse](#ibc.core.channel.v1.QueryNextSequenceReceiveResponse) | NextSequenceReceive returns the next receive sequence for a given channel. | GET|/ibc/core/channel/v1/channels/{channel_id}/ports/{port_id}/next_sequence|
+| `NextSequenceSend` | [QueryNextSequenceSendRequest](#ibc.core.channel.v1.QueryNextSequenceSendRequest) | [QueryNextSequenceSendResponse](#ibc.core.channel.v1.QueryNextSequenceSendResponse) | NextSequenceSend returns the next send sequence for a given channel. | GET|/ibc/core/channel/v1/channels/{channel_id}/ports/{port_id}/next_sequence_send|
 
  <!-- end services -->
 
