@@ -1,7 +1,5 @@
 go 1.23.6
 
-toolchain go1.24.4
-
 module github.com/cosmos/ibc-go/v6
 
 retract (
