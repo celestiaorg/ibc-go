@@ -146,10 +146,10 @@ github.com/bufbuild/protocompile v0.14.1/go.mod h1:ppVdAIhbr2H8asPk6k4pY7t9zB1OU
 github.com/bwesterb/go-ristretto v1.2.0/go.mod h1:fUIoIZaG73pV5biE2Blr2xEzDoMj7NFEuV9ekS419A0=
 github.com/c-bata/go-prompt v0.2.2/go.mod h1:VzqtzE2ksDBcdln8G7mk2RX9QyGjH+OVqOCSiVIqS34=
 github.com/casbin/casbin/v2 v2.1.2/go.mod h1:YcPU1XXisHhLzuxH9coDNf2FbKpjGlbCg3n9yuLkIJQ=
-github.com/celestiaorg/celestia-core v1.52.1-tm-v0.34.35.0.20250623165146-701d1edca3d5 h1:bcXich7P120D099VtC+rQbUKPRjhWqI892pDUTA45C0=
-github.com/celestiaorg/celestia-core v1.52.1-tm-v0.34.35.0.20250623165146-701d1edca3d5/go.mod h1:SI38xqZZ4ccoAxszUJqsJ/a5rOkzQRijzHQQlLKkyUc=
-github.com/celestiaorg/cosmos-sdk v1.30.0-sdk-v0.46.16.0.20250623184849-41564030103e h1:gXQYEiExktzAVdEWxs/rJKtDGTxF1qE2aGEmW7EaJ0E=
-github.com/celestiaorg/cosmos-sdk v1.30.0-sdk-v0.46.16.0.20250623184849-41564030103e/go.mod h1:10xBL3fny237Xw3PJS0vOlw/5jZJsQYry548qB7hH08=
+github.com/celestiaorg/celestia-core v1.55.0-tm-v0.34.35 h1:FREwqZwPvYsodr1AqqEIyW+VsBnwTzJNtC6NFdZX8rs=
+github.com/celestiaorg/celestia-core v1.55.0-tm-v0.34.35/go.mod h1:SI38xqZZ4ccoAxszUJqsJ/a5rOkzQRijzHQQlLKkyUc=
+github.com/celestiaorg/cosmos-sdk v1.31.0-sdk-v0.46.16 h1:kJRiFVBiAkqAJvcJesYT8qmnFhXQvpIq7xaTWK13N+g=
+github.com/celestiaorg/cosmos-sdk v1.31.0-sdk-v0.46.16/go.mod h1:EMxw97dX/lq2vuiP28bgYsog2jn4gV7bnRhHhjcsu3M=
 github.com/celestiaorg/nmt v0.23.0 h1:cfYy//hL1HeDSH0ub3CPlJuox5U5xzgg4JGZrw23I/I=
 github.com/celestiaorg/nmt v0.23.0/go.mod h1:kYfIjRq5rmA2mJnv41GLWkxn5KyLNPlma3v5Q68rHdI=
 github.com/cenkalti/backoff v2.2.1+incompatible h1:tNowT99t7UNflLxfYYSlKYsBpXdEet03Pg2g16Swow4=
