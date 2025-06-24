@@ -828,6 +828,23 @@ func (app *SimApp) RegisterTendermintService(clientCtx client.Context) {
 	)
 }
 
+// PrepareProposal fullfills the celestia-core version of the ABCI interface. It
+// allows for arbitrary processing steps before transaction data is included in
+// the block.
+func (app *SimApp) PrepareProposal(req abci.RequestPrepareProposal) abci.ResponsePrepareProposal {
+	return abci.ResponsePrepareProposal{
+		BlockData: req.BlockData,
+	}
+}
+
+// ProcessProposal fulfills the celestia-core version of the ABCI++ interface.
+// It allows for arbitrary processing to occur after receiving a proposal block.
+func (app *SimApp) ProcessProposal(req abci.RequestProcessProposal) abci.ResponseProcessProposal {
+	return abci.ResponseProcessProposal{
+		Result: abci.ResponseProcessProposal_ACCEPT,
+	}
+}
+
 // RegisterSwaggerAPI registers swagger route with API Server
 func RegisterSwaggerAPI(ctx client.Context, rtr *mux.Router) {
 	statikFS, err := fs.New()
