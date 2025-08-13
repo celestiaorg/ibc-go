@@ -134,6 +134,17 @@ go.sum: go.mod
 	go mod verify
 	go mod tidy
 
+tidy-all:
+	@echo "Running go mod tidy in all modules..."
+	@go mod tidy
+	@cd simapp && go mod tidy
+	@cd modules/capability && go mod tidy
+	@cd modules/light-clients/08-wasm && go mod tidy
+	@cd modules/apps/callbacks && go mod tidy
+	@echo "All modules tidied successfully"
+
+mod: tidy-all
+
 ###############################################################################
 ###                              Documentation                              ###
 ###############################################################################
