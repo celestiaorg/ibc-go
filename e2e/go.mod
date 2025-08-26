@@ -26,7 +26,7 @@ replace github.com/gogo/protobuf => github.com/regen-network/protobuf v1.3.3-alp
 
 replace (
 	cosmossdk.io/x/upgrade => github.com/celestiaorg/cosmos-sdk/x/upgrade v0.2.0
-	github.com/cometbft/cometbft => github.com/celestiaorg/celestia-core v0.39.0
+	github.com/cometbft/cometbft => github.com/celestiaorg/celestia-core v0.39.2
 	github.com/cosmos/cosmos-sdk => github.com/celestiaorg/cosmos-sdk v0.51.0
 	github.com/syndtr/goleveldb => github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 )
