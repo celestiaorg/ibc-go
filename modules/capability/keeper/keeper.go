@@ -239,7 +239,7 @@ func (sk ScopedKeeper) NewCapability(ctx sdk.Context, name string) (*types.Capab
 	store := ctx.KVStore(sk.storeKey)
 
 	if _, ok := sk.GetCapability(ctx, name); ok {
-		return nil, errorsmod.Wrapf(types.ErrCapabilityTaken, fmt.Sprintf("module: %s, name: %s", sk.module, name))
+		return nil, errorsmod.Wrapf(types.ErrCapabilityTaken, "module: %s, name: %s", sk.module, name)
 	}
 
 	// create new capability with the current global index
