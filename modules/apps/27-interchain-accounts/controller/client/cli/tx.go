@@ -30,11 +30,11 @@ func newRegisterInterchainAccountCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "register [connection-id]",
 		Short: "Register an interchain account on the provided connection.",
-		Long: strings.TrimSpace(`Register an account on the counterparty chain via the 
-connection id from the source chain. Connection identifier should be for the source chain 
-and the interchain account will be created on the counterparty chain. Callers are expected to 
+		Long: strings.TrimSpace(`Register an account on the counterparty chain via the
+connection id from the source chain. Connection identifier should be for the source chain
+and the interchain account will be created on the counterparty chain. Callers are expected to
 provide the appropriate application version string via {version} flag and the desired ordering
-via the {ordering} flag. Generates a new port identifier using the provided owner string, binds to the port identifier and claims 
+via the {ordering} flag. Generates a new port identifier using the provided owner string, binds to the port identifier and claims
 the associated capability.`),
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -72,8 +72,8 @@ func newSendTxCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "send-tx [connection-id] [path/to/packet_msg.json]",
 		Short: "Send an interchain account tx on the provided connection.",
-		Long: strings.TrimSpace(`Submits pre-built packet data containing messages to be executed on the host chain 
-and attempts to send the packet. Packet data is provided as json, file or string. An 
+		Long: strings.TrimSpace(`Submits pre-built packet data containing messages to be executed on the host chain
+and attempts to send the packet. Packet data is provided as json, file or string. An
 appropriate relative timeoutTimestamp must be provided with flag {relative-packet-timeout}`),
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -127,7 +127,7 @@ func parseOrdering(cmd *cobra.Command) (channeltypes.Order, error) {
 
 	order, found := channeltypes.Order_value[strings.ToUpper(orderString)]
 	if !found {
-		return channeltypes.NONE, fmt.Errorf("invalid channel ordering: %s", orderString)
+		return channeltypes.NONE, fmt.Errorf("%s", orderString)
 	}
 
 	return channeltypes.Order(order), nil
