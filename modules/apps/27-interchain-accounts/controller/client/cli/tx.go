@@ -127,7 +127,7 @@ func parseOrdering(cmd *cobra.Command) (channeltypes.Order, error) {
 
 	order, found := channeltypes.Order_value[strings.ToUpper(orderString)]
 	if !found {
-		return channeltypes.NONE, fmt.Errorf("%s", orderString)
+		return channeltypes.NONE, fmt.Errorf("invalid channel ordering: %s", orderString)
 	}
 
 	return channeltypes.Order(order), nil
