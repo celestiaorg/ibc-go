@@ -47,7 +47,7 @@ func (co *CapabilityOwners) Set(owner Owner) error {
 	i, ok := co.Get(owner)
 	if ok {
 		// owner already exists at co.Owners[i]
-		return errorsmod.Wrapf(ErrOwnerClaimed, owner.String())
+		return errorsmod.Wrapf(ErrOwnerClaimed, "%s", owner.String())
 	}
 
 	// owner does not exist in the set of owners, so we insert at position i
