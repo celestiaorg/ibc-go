@@ -6,6 +6,7 @@ option go_package = "github.com/cosmos/ibc-go/v8/modules/core/04-channel/types";
 
 import "gogoproto/gogo.proto";
 import "ibc/core/channel/v1/channel.proto";
+import "ibc/core/channel/v1/upgrade.proto";
 
 // GenesisState defines the ibc channel submodule's genesis state.
 message GenesisState {
@@ -17,8 +18,13 @@ message GenesisState {
   repeated PacketSequence    recv_sequences   = 6 [(gogoproto.nullable) = false];
   repeated PacketSequence    ack_sequences    = 7 [(gogoproto.nullable) = false];
   // the sequence for the next generated channel identifier
-  uint64 next_channel_sequence = 8;
-  Params params                = 9 [(gogoproto.nullable) = false];
+  uint64                          next_channel_sequence   = 8;
+  Params                          params                  = 9 [(gogoproto.nullable) = false];
+  repeated IdentifiedUpgrade      upgrades                = 10 [(gogoproto.nullable) = false];
+  repeated IdentifiedUpgrade      counterparty_upgrades   = 11 [(gogoproto.nullable) = false];
+  repeated IdentifiedErrorReceipt error_receipts          = 12 [(gogoproto.nullable) = false];
+  repeated PacketSequence         pruning_sequence_starts = 13 [(gogoproto.nullable) = false];
+  repeated PacketSequence         recv_start_sequences    = 14 [(gogoproto.nullable) = false];
 }
 
 // PacketSequence defines the genesis type necessary to retrieve and store
@@ -27,4 +33,20 @@ message PacketSequence {
   string port_id    = 1;
   string channel_id = 2;
   uint64 sequence   = 3;
+}
+
+// IdentifiedUpgrade defines the genesis type for a channel upgrade record
+// with its port and channel identifiers.
+message IdentifiedUpgrade {
+  string  port_id    = 1;
+  string  channel_id = 2;
+  Upgrade upgrade    = 3 [(gogoproto.nullable) = false];
+}
+
+// IdentifiedErrorReceipt defines the genesis type for a channel upgrade
+// error receipt with its port and channel identifiers.
+message IdentifiedErrorReceipt {
+  string       port_id       = 1;
+  string       channel_id    = 2;
+  ErrorReceipt error_receipt = 3 [(gogoproto.nullable) = false];
 }
