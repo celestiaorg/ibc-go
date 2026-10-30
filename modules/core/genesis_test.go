@@ -17,6 +17,7 @@ import (
 	"github.com/cosmos/ibc-go/v8/modules/core/types"
 	ibctm "github.com/cosmos/ibc-go/v8/modules/light-clients/07-tendermint"
 	ibctesting "github.com/cosmos/ibc-go/v8/testing"
+	ibcmock "github.com/cosmos/ibc-go/v8/testing/mock"
 	"github.com/cosmos/ibc-go/v8/testing/simapp"
 )
 
@@ -396,53 +397,63 @@ func (suite *IBCTestSuite) TestExportGenesisChannelUpgrades() {
 	path2 := ibctesting.NewPath(suite.chainA, suite.chainB)
 	suite.coordinator.Setup(path2)
 
+	// on chain A: upgrade 1 completes, upgrade 2 is replaced by upgrade 3 (error receipt),
+	// upgrade 3 stops at FLUSHCOMPLETE; path2 runs first so the export order does not follow the write order
+	for _, path := range []*ibctesting.Path{path2, path1} {
+		// each governance Init advances time, so refresh the clients before they expire
+		suite.Require().NoError(path.EndpointA.UpdateClient())
+		suite.Require().NoError(path.EndpointB.UpdateClient())
+
+		path.EndpointA.ChannelConfig.ProposedUpgrade.Fields.Version = ibcmock.UpgradeVersion
+		path.EndpointB.ChannelConfig.ProposedUpgrade.Fields.Version = ibcmock.UpgradeVersion
+		suite.Require().NoError(path.EndpointA.ChanUpgradeInit())
+		suite.Require().NoError(path.EndpointB.ChanUpgradeTry())
+		suite.Require().NoError(path.EndpointA.ChanUpgradeAck())
+		suite.Require().NoError(path.EndpointB.ChanUpgradeConfirm())
+		suite.Require().NoError(path.EndpointA.ChanUpgradeOpen())
+
+		timeoutHeight := suite.chainB.GetTimeoutHeight()
+		sequence, err := path.EndpointA.SendPacket(timeoutHeight, 0, ibctesting.MockPacketData)
+		suite.Require().NoError(err)
+		packet := channeltypes.NewPacket(ibctesting.MockPacketData, sequence, path.EndpointA.ChannelConfig.PortID, path.EndpointA.ChannelID, path.EndpointB.ChannelConfig.PortID, path.EndpointB.ChannelID, timeoutHeight, 0)
+		suite.Require().NoError(path.RelayPacket(packet))
+
+		path.EndpointA.ChannelConfig.ProposedUpgrade.Fields.Version = ibcmock.Version
+		suite.Require().NoError(path.EndpointA.ChanUpgradeInit())
+		suite.Require().NoError(path.EndpointA.ChanUpgradeInit())
+		suite.Require().NoError(path.EndpointB.ChanUpgradeTry())
+		suite.Require().NoError(path.EndpointA.ChanUpgradeAck())
+	}
+
 	ctx := suite.chainA.GetContext()
 	channelKeeper := suite.chainA.App.GetIBCKeeper().ChannelKeeper
-	upgrade := channeltypes.NewUpgrade(
-		channeltypes.NewUpgradeFields(channeltypes.UNORDERED, []string{path1.EndpointA.ConnectionID}, ibctesting.DefaultChannelVersion),
-		channeltypes.NewTimeout(clienttypes.NewHeight(1, 100), 1_000_000),
-		2,
-	)
-	errorReceipt := channeltypes.ErrorReceipt{Sequence: 2, Message: "upgrade failed"}
-
-	// write path2 first so the export order does not follow the write order
-	endpoints := []*ibctesting.Endpoint{path2.EndpointA, path1.EndpointA}
-	for _, ep := range endpoints {
+	var expected channeltypes.GenesisState
+	for _, ep := range []*ibctesting.Endpoint{path1.EndpointA, path2.EndpointA} {
 		portID, channelID := ep.ChannelConfig.PortID, ep.ChannelID
 		channel := ep.GetChannel()
-		channel.UpgradeSequence = 3
-		channelKeeper.SetChannel(ctx, portID, channelID, channel)
-		channelKeeper.SetUpgrade(ctx, portID, channelID, upgrade)
-		channelKeeper.SetCounterpartyUpgrade(ctx, portID, channelID, upgrade)
-		channelKeeper.SetUpgradeErrorReceipt(ctx, portID, channelID, errorReceipt)
-		channelKeeper.SetPruningSequenceStart(ctx, portID, channelID, 1)
-		channelKeeper.SetRecvStartSequence(ctx, portID, channelID, 5)
+		suite.Require().Equal(channeltypes.FLUSHCOMPLETE, channel.State)
+		suite.Require().Equal(uint64(3), channel.UpgradeSequence)
+		suite.Require().Equal(uint64(2), ep.GetChannelUpgrade().NextSequenceSend)
+		counterpartyUpgrade, found := channelKeeper.GetCounterpartyUpgrade(ctx, portID, channelID)
+		suite.Require().True(found)
+		errorReceipt, found := channelKeeper.GetUpgradeErrorReceipt(ctx, portID, channelID)
+		suite.Require().True(found)
+		suite.Require().Equal(uint64(2), errorReceipt.Sequence)
+
+		expected.Upgrades = append(expected.Upgrades, channeltypes.NewIdentifiedUpgrade(portID, channelID, ep.GetChannelUpgrade()))
+		expected.CounterpartyUpgrades = append(expected.CounterpartyUpgrades, channeltypes.NewIdentifiedUpgrade(portID, channelID, counterpartyUpgrade))
+		expected.ErrorReceipts = append(expected.ErrorReceipts, channeltypes.NewIdentifiedErrorReceipt(portID, channelID, errorReceipt))
+		expected.PruningSequenceStarts = append(expected.PruningSequenceStarts, channeltypes.NewPacketSequence(portID, channelID, 1))
+		expected.RecvStartSequences = append(expected.RecvStartSequences, channeltypes.NewPacketSequence(portID, channelID, 1))
 	}
 
 	gs := ibc.ExportGenesis(ctx, *suite.chainA.App.GetIBCKeeper())
 	chGs := gs.ChannelGenesis
-
-	port, ch0, ch1 := path1.EndpointA.ChannelConfig.PortID, path1.EndpointA.ChannelID, path2.EndpointA.ChannelID
-	suite.Require().Equal([]channeltypes.IdentifiedUpgrade{
-		channeltypes.NewIdentifiedUpgrade(port, ch0, upgrade),
-		channeltypes.NewIdentifiedUpgrade(port, ch1, upgrade),
-	}, chGs.Upgrades)
-	suite.Require().Equal(chGs.Upgrades, chGs.CounterpartyUpgrades)
-	suite.Require().Equal([]channeltypes.IdentifiedErrorReceipt{
-		channeltypes.NewIdentifiedErrorReceipt(port, ch0, errorReceipt),
-		channeltypes.NewIdentifiedErrorReceipt(port, ch1, errorReceipt),
-	}, chGs.ErrorReceipts)
-	suite.Require().Equal([]channeltypes.PacketSequence{
-		channeltypes.NewPacketSequence(port, ch0, 1),
-		channeltypes.NewPacketSequence(port, ch1, 1),
-	}, chGs.PruningSequenceStarts)
-	suite.Require().Equal([]channeltypes.PacketSequence{
-		channeltypes.NewPacketSequence(port, ch0, 5),
-		channeltypes.NewPacketSequence(port, ch1, 5),
-	}, chGs.RecvStartSequences)
-	for _, channel := range chGs.Channels {
-		suite.Require().Equal(uint64(3), channel.UpgradeSequence)
-	}
+	suite.Require().Equal(expected.Upgrades, chGs.Upgrades)
+	suite.Require().Equal(expected.CounterpartyUpgrades, chGs.CounterpartyUpgrades)
+	suite.Require().Equal(expected.ErrorReceipts, chGs.ErrorReceipts)
+	suite.Require().Equal(expected.PruningSequenceStarts, chGs.PruningSequenceStarts)
+	suite.Require().Equal(expected.RecvStartSequences, chGs.RecvStartSequences)
 
 	// import the JSON genesis on a new chain and export it again
 	cdc := suite.chainA.App.AppCodec()
