@@ -2,6 +2,7 @@ package keeper_test
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -311,6 +312,60 @@ func (suite *KeeperTestSuite) TestRevertCapability() {
 	got, ok = sk.GetCapability(suite.ctx, capName)
 	suite.Require().True(ok, "could not retrieve capability from context")
 	suite.Require().Equal(cap, got, "did not get correct capability from context")
+}
+
+// Capabilities created at the same index on sibling store branches must share
+// one pointer, regardless of which branch is written.
+func (suite *KeeperTestSuite) TestNewCapabilitySiblingBranches() {
+	sk := suite.keeper.ScopeToModule(bankModuleName)
+	ms := suite.ctx.MultiStore()
+
+	// Created on the branch that is written to the parent.
+	execCache := ms.CacheMultiStore()
+	execCtx := suite.ctx.WithMultiStore(execCache)
+	execCap, err := sk.NewCapability(execCtx, "channel-0")
+	suite.Require().NoError(err)
+
+	// Created at the same index on a sibling branch that is discarded.
+	simCache := ms.CacheMultiStore()
+	simCtx := suite.ctx.WithMultiStore(simCache)
+	simCap, err := sk.NewCapability(simCtx, "channel-0")
+	suite.Require().NoError(err)
+	suite.Require().Same(execCap, simCap, "sibling branches must observe one pointer per index")
+
+	execCache.Write()
+
+	got, ok := sk.GetCapability(suite.ctx, "channel-0")
+	suite.Require().True(ok)
+	suite.Require().Same(execCap, got)
+	suite.Require().True(sk.AuthenticateCapability(suite.ctx, execCap, "channel-0"))
+}
+
+// Run with -race: NewCapability is called concurrently on separate branches.
+func (suite *KeeperTestSuite) TestConcurrentNewCapability() {
+	sk := suite.keeper.ScopeToModule(bankModuleName)
+	ms := suite.ctx.MultiStore()
+
+	const goroutines = 16
+	caps := make([]*types.Capability, goroutines)
+	errs := make([]error, goroutines)
+
+	var wg sync.WaitGroup
+	for i := range caps {
+		// Each branch gets its own gas meter; the suite context shares one.
+		ctx := suite.ctx.WithMultiStore(ms.CacheMultiStore()).WithGasMeter(storetypes.NewInfiniteGasMeter())
+		wg.Add(1)
+		go func(i int, ctx sdk.Context) {
+			defer wg.Done()
+			caps[i], errs[i] = sk.NewCapability(ctx, "channel-0")
+		}(i, ctx)
+	}
+	wg.Wait()
+
+	for i := range caps {
+		suite.Require().NoError(errs[i])
+		suite.Require().Same(caps[0], caps[i])
+	}
 }
 
 func TestKeeperTestSuite(t *testing.T) {

@@ -32,7 +32,7 @@ type (
 		cdc           codec.BinaryCodec
 		storeKey      storetypes.StoreKey
 		memKey        storetypes.StoreKey
-		capMap        map[uint64]*types.Capability
+		capMap        *types.CapabilityMap
 		scopedModules map[string]struct{}
 		sealed        bool
 	}
@@ -47,7 +47,7 @@ type (
 		cdc      codec.BinaryCodec
 		storeKey storetypes.StoreKey
 		memKey   storetypes.StoreKey
-		capMap   map[uint64]*types.Capability
+		capMap   *types.CapabilityMap
 		module   string
 	}
 )
@@ -59,7 +59,7 @@ func NewKeeper(cdc codec.BinaryCodec, storeKey, memKey storetypes.StoreKey) *Kee
 		cdc:           cdc,
 		storeKey:      storeKey,
 		memKey:        memKey,
-		capMap:        make(map[uint64]*types.Capability),
+		capMap:        types.NewCapabilityMap(),
 		scopedModules: make(map[string]struct{}),
 		sealed:        false,
 	}
@@ -224,7 +224,7 @@ func (k Keeper) InitializeCapability(ctx sdk.Context, index uint64, owners types
 		memStore.Set(types.RevCapabilityKey(owner.Module, owner.Name), sdk.Uint64ToBigEndian(index))
 
 		// Set the mapping from index from index to in-memory capability in the go map
-		k.capMap[index] = cap
+		k.capMap.Set(index, cap)
 	}
 }
 
@@ -249,7 +249,9 @@ func (sk ScopedKeeper) NewCapability(ctx sdk.Context, name string) (*types.Capab
 
 	// create new capability with the current global index
 	index := types.IndexFromKey(store.Get(types.KeyIndex))
-	cap := types.NewCapability(index)
+	// The map is not rolled back with the store branch, so reuse the pointer
+	// already held for this index if a previous branch created one.
+	cap := sk.capMap.GetOrSet(index, types.NewCapability(index))
 
 	// update capability owner set
 	if err := sk.addOwner(ctx, cap, name); err != nil {
@@ -270,9 +272,6 @@ func (sk ScopedKeeper) NewCapability(ctx sdk.Context, name string) (*types.Capab
 	// will change memory address of capability, we simply store index as value here
 	// and retrieve the in-memory pointer to the capability from our map
 	memStore.Set(types.RevCapabilityKey(sk.module, name), sdk.Uint64ToBigEndian(index))
-
-	// Set the mapping from index from index to in-memory capability in the go map
-	sk.capMap[index] = cap
 
 	logger(ctx).Info("created new capability", "module", sk.module, "name", name)
 
@@ -361,7 +360,7 @@ func (sk ScopedKeeper) ReleaseCapability(ctx sdk.Context, cap *types.Capability)
 		// remove capability owner set
 		prefixStore.Delete(indexKey)
 		// since no one owns capability, we can delete capability from map
-		delete(sk.capMap, cap.GetIndex())
+		sk.capMap.Delete(cap.GetIndex())
 	} else {
 		// update capability owner set
 		prefixStore.Set(indexKey, sk.cdc.MustMarshal(capOwners))
@@ -394,8 +393,8 @@ func (sk ScopedKeeper) GetCapability(ctx sdk.Context, name string) (*types.Capab
 		return nil, false
 	}
 
-	cap := sk.capMap[index]
-	if cap == nil {
+	cap, ok := sk.capMap.Get(index)
+	if !ok {
 		panic("capability found in memstore is missing from map")
 	}
 

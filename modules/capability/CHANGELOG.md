@@ -27,6 +27,12 @@ Ref: https://keepachangelog.com/en/1.0.0/
 
 # Changelog
 
+## [Unreleased]
+
+### Bug Fixes
+
+* Make the in-memory capability map safe for concurrent use and keep one capability pointer per index across store branches.
+
 ## [v1.0.1]
 
 ### Dependencies
