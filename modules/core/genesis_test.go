@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"testing"
+	"time"
 
 	testifysuite "github.com/stretchr/testify/suite"
 
@@ -399,32 +400,9 @@ func (suite *IBCTestSuite) TestExportGenesisChannelUpgrades() {
 	path2 := ibctesting.NewPath(suite.chainA, suite.chainB)
 	suite.coordinator.Setup(path2)
 
-	// on chain A: upgrade 1 completes, upgrade 2 is replaced by upgrade 3 (error receipt),
-	// upgrade 3 stops at FLUSHCOMPLETE; path2 runs first so the export order does not follow the write order
+	// path2 runs first so the export order does not follow the write order
 	for _, path := range []*ibctesting.Path{path2, path1} {
-		// each governance Init advances time, so refresh the clients before they expire
-		suite.Require().NoError(path.EndpointA.UpdateClient())
-		suite.Require().NoError(path.EndpointB.UpdateClient())
-
-		path.EndpointA.ChannelConfig.ProposedUpgrade.Fields.Version = ibcmock.UpgradeVersion
-		path.EndpointB.ChannelConfig.ProposedUpgrade.Fields.Version = ibcmock.UpgradeVersion
-		suite.Require().NoError(path.EndpointA.ChanUpgradeInit())
-		suite.Require().NoError(path.EndpointB.ChanUpgradeTry())
-		suite.Require().NoError(path.EndpointA.ChanUpgradeAck())
-		suite.Require().NoError(path.EndpointB.ChanUpgradeConfirm())
-		suite.Require().NoError(path.EndpointA.ChanUpgradeOpen())
-
-		timeoutHeight := suite.chainB.GetTimeoutHeight()
-		sequence, err := path.EndpointA.SendPacket(timeoutHeight, 0, ibctesting.MockPacketData)
-		suite.Require().NoError(err)
-		packet := channeltypes.NewPacket(ibctesting.MockPacketData, sequence, path.EndpointA.ChannelConfig.PortID, path.EndpointA.ChannelID, path.EndpointB.ChannelConfig.PortID, path.EndpointB.ChannelID, timeoutHeight, 0)
-		suite.Require().NoError(path.RelayPacket(packet))
-
-		path.EndpointA.ChannelConfig.ProposedUpgrade.Fields.Version = ibcmock.Version
-		suite.Require().NoError(path.EndpointA.ChanUpgradeInit())
-		suite.Require().NoError(path.EndpointA.ChanUpgradeInit())
-		suite.Require().NoError(path.EndpointB.ChanUpgradeTry())
-		suite.Require().NoError(path.EndpointA.ChanUpgradeAck())
+		suite.buildUpgradeRecords(path)
 	}
 
 	ctx := suite.chainA.GetContext()
@@ -457,21 +435,64 @@ func (suite *IBCTestSuite) TestExportGenesisChannelUpgrades() {
 	suite.Require().Equal(expected.RecvStartSequences, chGs.RecvStartSequences)
 }
 
+// buildUpgradeRecords runs on path, as seen from chain A: upgrade 1 completes, both chains send a
+// packet, upgrade 2 is replaced by upgrade 3 (error receipt), upgrade 3 stops at FLUSHCOMPLETE.
+// It returns chain B's packet, which is below A's recv start once upgrade 3 opens.
+func (suite *IBCTestSuite) buildUpgradeRecords(path *ibctesting.Path) channeltypes.Packet {
+	// each governance Init advances time, so refresh the clients before they expire
+	suite.Require().NoError(path.EndpointA.UpdateClient())
+	suite.Require().NoError(path.EndpointB.UpdateClient())
+
+	path.EndpointA.ChannelConfig.ProposedUpgrade.Fields.Version = ibcmock.UpgradeVersion
+	path.EndpointB.ChannelConfig.ProposedUpgrade.Fields.Version = ibcmock.UpgradeVersion
+	suite.Require().NoError(path.EndpointA.ChanUpgradeInit())
+	suite.Require().NoError(path.EndpointB.ChanUpgradeTry())
+	suite.Require().NoError(path.EndpointA.ChanUpgradeAck())
+	suite.Require().NoError(path.EndpointB.ChanUpgradeConfirm())
+	suite.Require().NoError(path.EndpointA.ChanUpgradeOpen())
+
+	timeoutHeight := suite.chainB.GetTimeoutHeight()
+	sequence, err := path.EndpointA.SendPacket(timeoutHeight, 0, ibctesting.MockPacketData)
+	suite.Require().NoError(err)
+	packet := channeltypes.NewPacket(ibctesting.MockPacketData, sequence, path.EndpointA.ChannelConfig.PortID, path.EndpointA.ChannelID, path.EndpointB.ChannelConfig.PortID, path.EndpointB.ChannelID, timeoutHeight, 0)
+	suite.Require().NoError(path.RelayPacket(packet))
+
+	// a timestamp timeout, so the packet can still be relayed many blocks later
+	timeoutTimestamp := uint64(suite.chainA.GetContext().BlockTime().Add(365 * 24 * time.Hour).UnixNano())
+	sequence, err = path.EndpointB.SendPacket(clienttypes.ZeroHeight(), timeoutTimestamp, ibctesting.MockPacketData)
+	suite.Require().NoError(err)
+	packetB := channeltypes.NewPacket(ibctesting.MockPacketData, sequence, path.EndpointB.ChannelConfig.PortID, path.EndpointB.ChannelID, path.EndpointA.ChannelConfig.PortID, path.EndpointA.ChannelID, clienttypes.ZeroHeight(), timeoutTimestamp)
+	suite.Require().NoError(path.RelayPacket(packetB))
+
+	path.EndpointA.ChannelConfig.ProposedUpgrade.Fields.Version = ibcmock.Version
+	suite.Require().NoError(path.EndpointA.ChanUpgradeInit())
+	suite.Require().NoError(path.EndpointA.ChanUpgradeInit())
+	suite.Require().NoError(path.EndpointB.ChanUpgradeTry())
+	suite.Require().NoError(path.EndpointA.ChanUpgradeAck())
+	return packetB
+}
+
+// exportIBCGenesis exports chain A's IBC genesis. It returns the export, its JSON and the state
+// decoded from that JSON, which must pass Validate.
+func (suite *IBCTestSuite) exportIBCGenesis() (*types.GenesisState, []byte, *types.GenesisState) {
+	gs := ibc.ExportGenesis(suite.chainA.GetContext(), *suite.chainA.App.GetIBCKeeper())
+	bz, err := suite.chainA.App.AppCodec().MarshalJSON(gs)
+	suite.Require().NoError(err)
+	var imported types.GenesisState
+	suite.Require().NoError(suite.chainA.App.AppCodec().UnmarshalJSON(bz, &imported))
+	suite.Require().NoError(imported.Validate())
+	return gs, bz, &imported
+}
+
 // requireChannelGenesisRoundTrip exports chain A's IBC genesis, imports it through JSON on a new
 // chain and requires an equal channel genesis on re-export. It returns the exported channel genesis.
 func (suite *IBCTestSuite) requireChannelGenesisRoundTrip() channeltypes.GenesisState {
-	gs := ibc.ExportGenesis(suite.chainA.GetContext(), *suite.chainA.App.GetIBCKeeper())
-	cdc := suite.chainA.App.AppCodec()
-	bz, err := cdc.MarshalJSON(gs)
-	suite.Require().NoError(err)
-	var imported types.GenesisState
-	suite.Require().NoError(cdc.UnmarshalJSON(bz, &imported))
-	suite.Require().NoError(imported.Validate())
+	gs, _, imported := suite.exportIBCGenesis()
 
 	app := simapp.Setup(suite.T(), false)
 	newCtx := app.BaseApp.NewContext(false)
 	suite.Require().NotPanics(func() {
-		ibc.InitGenesis(newCtx, *app.IBCKeeper, &imported)
+		ibc.InitGenesis(newCtx, *app.IBCKeeper, imported)
 	})
 	suite.Require().Equal(gs.ChannelGenesis, ibc.ExportGenesis(newCtx, *app.IBCKeeper).ChannelGenesis)
 	return gs.ChannelGenesis
@@ -673,6 +694,177 @@ func (suite *IBCTestSuite) TestExportGenesisReachableChannelUpgradeStates() {
 
 			tc.build()
 			suite.requireChannelGenesisRoundTrip()
+		})
+	}
+}
+
+// reimportIBCGenesis exports chain A's IBC genesis, deletes every key in A's IBC store, runs IBC
+// InitGenesis on the same store, requires an equal re-export and commits A. Capabilities and
+// chain B are untouched, so the paths keep working.
+func (suite *IBCTestSuite) reimportIBCGenesis() {
+	_, bz, imported := suite.exportIBCGenesis()
+	ctx := suite.chainA.GetContext()
+	ibcKeeper := *suite.chainA.App.GetIBCKeeper()
+	store := ctx.KVStore(suite.chainA.GetSimApp().GetKey(exported.StoreKey))
+	var keys [][]byte
+	it := store.Iterator(nil, nil)
+	for ; it.Valid(); it.Next() {
+		keys = append(keys, it.Key())
+	}
+	suite.Require().NoError(it.Close())
+	for _, key := range keys {
+		store.Delete(key)
+	}
+
+	suite.Require().NotPanics(func() {
+		ibc.InitGenesis(ctx, ibcKeeper, imported)
+	})
+	reexported, err := suite.chainA.App.AppCodec().MarshalJSON(ibc.ExportGenesis(ctx, ibcKeeper))
+	suite.Require().NoError(err)
+	suite.Require().Equal(string(bz), string(reexported))
+	suite.coordinator.CommitBlock(suite.chainA)
+}
+
+// newChannel opens another mock channel on path's connection, so the channels share the clients.
+func (suite *IBCTestSuite) newChannel(path *ibctesting.Path) *ibctesting.Path {
+	newPath := ibctesting.NewPath(suite.chainA, suite.chainB)
+	newPath.EndpointA.ClientID, newPath.EndpointB.ClientID = path.EndpointA.ClientID, path.EndpointB.ClientID
+	newPath.EndpointA.ConnectionID, newPath.EndpointB.ConnectionID = path.EndpointA.ConnectionID, path.EndpointB.ConnectionID
+	suite.coordinator.CreateMockChannels(newPath)
+	return newPath
+}
+
+func (suite *IBCTestSuite) TestChannelUpgradesContinueAfterReimport() {
+	path := ibctesting.NewPath(suite.chainA, suite.chainB)
+	suite.coordinator.Setup(path)
+	timeoutPath, cancelPath := suite.newChannel(path), suite.newChannel(path)
+	suite.buildUpgradeRecords(timeoutPath)
+	suite.buildUpgradeRecords(cancelPath)
+	// path is built last, so its upgrade timeout has not passed
+	packet := suite.buildUpgradeRecords(path)
+	suite.reimportIBCGenesis()
+
+	channelKeeper := suite.chainA.App.GetIBCKeeper().ChannelKeeper
+	portID, channelID := path.EndpointA.ChannelConfig.PortID, path.EndpointA.ChannelID
+	suite.Require().NoError(path.EndpointB.ChanUpgradeConfirm())
+	suite.Require().NoError(path.EndpointA.ChanUpgradeOpen())
+	suite.Require().Equal(channeltypes.OPEN, path.EndpointA.GetChannel().State)
+	recvStart, found := channelKeeper.GetRecvStartSequence(suite.chainA.GetContext(), portID, channelID)
+	suite.Require().True(found)
+	suite.Require().Equal(packet.Sequence+1, recvStart)
+	// re-import again, so the imported recv start and pruning start drive the steps below
+	suite.reimportIBCGenesis()
+
+	_, err := suite.chainA.SendMsgs(channeltypes.NewMsgPruneAcknowledgements(portID, channelID, 10, suite.chainA.SenderAccount.GetAddress().String()))
+	suite.Require().NoError(err)
+	pruningStart, found := channelKeeper.GetPruningSequenceStart(suite.chainA.GetContext(), portID, channelID)
+	suite.Require().True(found)
+	suite.Require().Equal(recvStart, pruningStart)
+	_, found = channelKeeper.GetPacketReceipt(suite.chainA.GetContext(), portID, channelID, packet.Sequence)
+	suite.Require().False(found)
+
+	// B's packet from before the upgrade, with its receipt on A pruned, is replayed
+	suite.counterpartyProves(func() {
+		commitment := channeltypes.CommitPacket(suite.chainB.App.AppCodec(), packet)
+		suite.chainB.App.GetIBCKeeper().ChannelKeeper.SetPacketCommitment(suite.chainB.GetContext(), packet.SourcePort, packet.SourceChannel, packet.Sequence, commitment)
+	})
+	suite.Require().NoError(path.EndpointA.UpdateClient())
+	suite.Require().ErrorContains(path.EndpointA.RecvPacket(packet), channeltypes.ErrPacketReceived.Error())
+
+	// the upgrade timeouts of the channels built first have passed
+	suite.Require().NoError(timeoutPath.EndpointA.ChanUpgradeTimeout())
+	suite.Require().Equal(channeltypes.OPEN, timeoutPath.EndpointA.GetChannel().State)
+	receipt, found := channelKeeper.GetUpgradeErrorReceipt(suite.chainA.GetContext(), timeoutPath.EndpointA.ChannelConfig.PortID, timeoutPath.EndpointA.ChannelID)
+	suite.Require().True(found)
+	suite.Require().Equal(uint64(3), receipt.Sequence)
+
+	// B aborts on Confirm because A's upgrade timed out, then A cancels at its current sequence
+	suite.Require().NoError(cancelPath.EndpointB.ChanUpgradeConfirm())
+	suite.Require().Equal(channeltypes.OPEN, cancelPath.EndpointB.GetChannel().State)
+	suite.Require().NoError(cancelPath.EndpointA.ChanUpgradeCancel())
+	suite.Require().Equal(channeltypes.OPEN, cancelPath.EndpointA.GetChannel().State)
+	receipt, found = channelKeeper.GetUpgradeErrorReceipt(suite.chainA.GetContext(), cancelPath.EndpointA.ChannelConfig.PortID, cancelPath.EndpointA.ChannelID)
+	suite.Require().True(found)
+	suite.Require().Equal(uint64(3), receipt.Sequence)
+}
+
+// upgradeOutcome returns chain A's channel, upgrade, counterparty upgrade and error receipt for
+// the endpoint. The counterparty channel ID is cleared so that twin channels compare equal.
+func (suite *IBCTestSuite) upgradeOutcome(endpoint *ibctesting.Endpoint) []any {
+	ctx := suite.chainA.GetContext()
+	channelKeeper := suite.chainA.App.GetIBCKeeper().ChannelKeeper
+	portID, channelID := endpoint.ChannelConfig.PortID, endpoint.ChannelID
+	channel := endpoint.GetChannel()
+	channel.Counterparty.ChannelId = ""
+	upgrade, upgradeFound := channelKeeper.GetUpgrade(ctx, portID, channelID)
+	counterpartyUpgrade, counterpartyUpgradeFound := channelKeeper.GetCounterpartyUpgrade(ctx, portID, channelID)
+	receipt, receiptFound := channelKeeper.GetUpgradeErrorReceipt(ctx, portID, channelID)
+	return []any{channel, upgrade, upgradeFound, counterpartyUpgrade, counterpartyUpgradeFound, receipt, receiptFound}
+}
+
+func (suite *IBCTestSuite) TestChannelUpgradeSameOutcomeAfterReimport() {
+	testCases := []struct {
+		name   string
+		build  func(path *ibctesting.Path)
+		step   func(path *ibctesting.Path) error
+		expErr string
+	}{
+		{
+			"cancel on CLOSED with a full upgrade",
+			func(path *ibctesting.Path) {
+				suite.Require().NoError(path.EndpointB.ChanUpgradeInit())
+				suite.Require().NoError(path.EndpointA.ChanUpgradeTry())
+				suite.closeByCounterparty(path)
+				suite.counterpartyProves(func() {
+					receipt := channeltypes.NewUpgradeError(path.EndpointA.GetChannel().UpgradeSequence, channeltypes.ErrInvalidUpgrade).GetErrorReceipt()
+					suite.chainB.GetSimApp().IBCKeeper.ChannelKeeper.SetUpgradeErrorReceipt(suite.chainB.GetContext(), path.EndpointB.ChannelConfig.PortID, path.EndpointB.ChannelID, receipt)
+				})
+			},
+			func(path *ibctesting.Path) error { return path.EndpointA.ChanUpgradeCancel() },
+			"",
+		},
+		{
+			"try with an outdated counterparty sequence panics writing the error receipt",
+			func(path *ibctesting.Path) {
+				suite.Require().NoError(path.EndpointA.ChanUpgradeInit())
+				suite.Require().NoError(path.EndpointA.ChanUpgradeInit())
+				suite.Require().NoError(path.EndpointB.ChanUpgradeInit())
+				suite.Require().Equal(uint64(2), path.EndpointA.GetChannel().UpgradeSequence)
+				suite.Require().Equal(uint64(1), path.EndpointB.GetChannel().UpgradeSequence)
+			},
+			func(path *ibctesting.Path) error { return path.EndpointA.ChanUpgradeTry() },
+			"recovered: error receipt sequence (1) must be greater than existing error receipt sequence (1)",
+		},
+	}
+
+	for _, tc := range testCases {
+		suite.Run(tc.name, func() {
+			suite.SetupTest()
+			source := ibctesting.NewPath(suite.chainA, suite.chainB)
+			suite.coordinator.Setup(source)
+			imported := suite.newChannel(source)
+			for _, path := range []*ibctesting.Path{source, imported} {
+				// each governance Init advances time, so refresh the clients before they expire
+				suite.Require().NoError(path.EndpointA.UpdateClient())
+				suite.Require().NoError(path.EndpointB.UpdateClient())
+				path.EndpointA.ChannelConfig.ProposedUpgrade.Fields.Version = ibcmock.UpgradeVersion
+				path.EndpointB.ChannelConfig.ProposedUpgrade.Fields.Version = ibcmock.UpgradeVersion
+				tc.build(path)
+			}
+
+			sourceErr := tc.step(source)
+			sourceOutcome := suite.upgradeOutcome(source.EndpointA)
+			suite.reimportIBCGenesis()
+			importedErr := tc.step(imported)
+
+			if tc.expErr == "" {
+				suite.Require().NoError(sourceErr)
+				suite.Require().NoError(importedErr)
+			} else {
+				suite.Require().ErrorContains(sourceErr, tc.expErr)
+				suite.Require().ErrorContains(importedErr, tc.expErr)
+			}
+			suite.Require().Equal(sourceOutcome, suite.upgradeOutcome(imported.EndpointA))
 		})
 	}
 }
