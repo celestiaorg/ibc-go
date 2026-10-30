@@ -137,6 +137,8 @@ func (gs GenesisState) Validate() error {
 			maxSequence = sequence
 		}
 
+		// only the first hop is checked; ValidateUpgradeState already rejects a channel without hops
+		channel.ConnectionHops = channel.ConnectionHops[:1]
 		if err := channel.ValidateBasic(); err != nil {
 			return fmt.Errorf("invalid channel %v channel index %d: %w", channel, i, err)
 		}
@@ -176,8 +178,9 @@ func (gs GenesisState) Validate() error {
 		}
 	}
 
+	// A recv sequence can be 0: an UNORDERED to ORDERED upgrade copies the counterparty next sequence send.
 	for i, rs := range gs.RecvSequences {
-		if err := rs.Validate(); err != nil {
+		if err := validateGenIdentifiers(rs.PortId, rs.ChannelId); err != nil {
 			return fmt.Errorf("invalid receive sequence %v index %d: %w", rs, i, err)
 		}
 	}

@@ -133,6 +133,42 @@ func TestValidateGenesis(t *testing.T) {
 			expPass: false,
 		},
 		{
+			name: "valid recv seq 0",
+			genState: types.GenesisState{
+				RecvSequences: []types.PacketSequence{
+					types.NewPacketSequence(testPort1, testChannel1, 0),
+				},
+			},
+			expPass: true,
+		},
+		{
+			name: "invalid ack seq 0",
+			genState: types.GenesisState{
+				AckSequences: []types.PacketSequence{
+					types.NewPacketSequence(testPort1, testChannel1, 0),
+				},
+			},
+			expPass: false,
+		},
+		{
+			name: "valid channel with an unchecked second hop",
+			genState: func() types.GenesisState {
+				gs := upgradeGenState()
+				gs.Channels[0].ConnectionHops = []string{testConnectionIDA, ""}
+				return gs
+			}(),
+			expPass: true,
+		},
+		{
+			name: "invalid first hop",
+			genState: func() types.GenesisState {
+				gs := upgradeGenState()
+				gs.Channels[0].ConnectionHops = []string{"", testConnectionIDA}
+				return gs
+			}(),
+			expPass: false,
+		},
+		{
 			name: "invalid ack seq",
 			genState: types.GenesisState{
 				AckSequences: []types.PacketSequence{
