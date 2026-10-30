@@ -15,6 +15,9 @@ func InitGenesis(ctx sdk.Context, k keeper.Keeper, gs types.GenesisState) {
 	if err := gs.Params.Validate(); err != nil {
 		panic(fmt.Sprintf("invalid ibc channel genesis state parameters: %v", err))
 	}
+	if err := gs.ValidateUpgradeState(); err != nil {
+		panic(fmt.Sprintf("invalid ibc channel genesis state: %v", err))
+	}
 	k.SetParams(ctx, gs.Params)
 	for _, channel := range gs.Channels {
 		ch := types.NewChannel(channel.State, channel.Ordering, channel.Counterparty, channel.ConnectionHops, channel.Version)
