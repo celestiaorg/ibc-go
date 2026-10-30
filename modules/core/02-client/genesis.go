@@ -60,7 +60,13 @@ func InitGenesis(ctx sdk.Context, k keeper.Keeper, gs types.GenesisState) {
 
 // ExportGenesis returns the ibc client submodule's exported genesis.
 func ExportGenesis(ctx sdk.Context, k keeper.Keeper) types.GenesisState {
-	genClients := k.GetAllGenesisClients(ctx)
+	// The localhost client is not exported because InitGenesis re-creates it.
+	var genClients types.IdentifiedClientStates
+	for _, client := range k.GetAllGenesisClients(ctx) {
+		if client.ClientId != exported.LocalhostClientID {
+			genClients = append(genClients, client)
+		}
+	}
 	clientsMetadata, err := k.GetAllClientMetadata(ctx, genClients)
 	if err != nil {
 		panic(err)
