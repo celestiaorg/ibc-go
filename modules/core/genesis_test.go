@@ -389,3 +389,73 @@ func (suite *IBCTestSuite) TestExportGenesisWithoutLocalhost() {
 	_, found = app.IBCKeeper.ClientKeeper.GetClientState(newCtx, exported.LocalhostClientID)
 	suite.Require().True(found)
 }
+
+func (suite *IBCTestSuite) TestExportGenesisChannelUpgrades() {
+	path1 := ibctesting.NewPath(suite.chainA, suite.chainB)
+	suite.coordinator.Setup(path1)
+	path2 := ibctesting.NewPath(suite.chainA, suite.chainB)
+	suite.coordinator.Setup(path2)
+
+	ctx := suite.chainA.GetContext()
+	channelKeeper := suite.chainA.App.GetIBCKeeper().ChannelKeeper
+	upgrade := channeltypes.NewUpgrade(
+		channeltypes.NewUpgradeFields(channeltypes.UNORDERED, []string{path1.EndpointA.ConnectionID}, ibctesting.DefaultChannelVersion),
+		channeltypes.NewTimeout(clienttypes.NewHeight(1, 100), 1_000_000),
+		2,
+	)
+	errorReceipt := channeltypes.ErrorReceipt{Sequence: 2, Message: "upgrade failed"}
+
+	// write path2 first so the export order does not follow the write order
+	endpoints := []*ibctesting.Endpoint{path2.EndpointA, path1.EndpointA}
+	for _, ep := range endpoints {
+		portID, channelID := ep.ChannelConfig.PortID, ep.ChannelID
+		channel := ep.GetChannel()
+		channel.UpgradeSequence = 3
+		channelKeeper.SetChannel(ctx, portID, channelID, channel)
+		channelKeeper.SetUpgrade(ctx, portID, channelID, upgrade)
+		channelKeeper.SetCounterpartyUpgrade(ctx, portID, channelID, upgrade)
+		channelKeeper.SetUpgradeErrorReceipt(ctx, portID, channelID, errorReceipt)
+		channelKeeper.SetPruningSequenceStart(ctx, portID, channelID, 1)
+		channelKeeper.SetRecvStartSequence(ctx, portID, channelID, 5)
+	}
+
+	gs := ibc.ExportGenesis(ctx, *suite.chainA.App.GetIBCKeeper())
+	chGs := gs.ChannelGenesis
+
+	port, ch0, ch1 := path1.EndpointA.ChannelConfig.PortID, path1.EndpointA.ChannelID, path2.EndpointA.ChannelID
+	suite.Require().Equal([]channeltypes.IdentifiedUpgrade{
+		channeltypes.NewIdentifiedUpgrade(port, ch0, upgrade),
+		channeltypes.NewIdentifiedUpgrade(port, ch1, upgrade),
+	}, chGs.Upgrades)
+	suite.Require().Equal(chGs.Upgrades, chGs.CounterpartyUpgrades)
+	suite.Require().Equal([]channeltypes.IdentifiedErrorReceipt{
+		channeltypes.NewIdentifiedErrorReceipt(port, ch0, errorReceipt),
+		channeltypes.NewIdentifiedErrorReceipt(port, ch1, errorReceipt),
+	}, chGs.ErrorReceipts)
+	suite.Require().Equal([]channeltypes.PacketSequence{
+		channeltypes.NewPacketSequence(port, ch0, 1),
+		channeltypes.NewPacketSequence(port, ch1, 1),
+	}, chGs.PruningSequenceStarts)
+	suite.Require().Equal([]channeltypes.PacketSequence{
+		channeltypes.NewPacketSequence(port, ch0, 5),
+		channeltypes.NewPacketSequence(port, ch1, 5),
+	}, chGs.RecvStartSequences)
+	for _, channel := range chGs.Channels {
+		suite.Require().Equal(uint64(3), channel.UpgradeSequence)
+	}
+
+	// import the JSON genesis on a new chain and export it again
+	cdc := suite.chainA.App.AppCodec()
+	bz, err := cdc.MarshalJSON(gs)
+	suite.Require().NoError(err)
+	var imported types.GenesisState
+	suite.Require().NoError(cdc.UnmarshalJSON(bz, &imported))
+	suite.Require().NoError(imported.Validate())
+
+	app := simapp.Setup(suite.T(), false)
+	newCtx := app.BaseApp.NewContext(false)
+	suite.Require().NotPanics(func() {
+		ibc.InitGenesis(newCtx, *app.IBCKeeper, &imported)
+	})
+	suite.Require().Equal(chGs, ibc.ExportGenesis(newCtx, *app.IBCKeeper).ChannelGenesis)
+}

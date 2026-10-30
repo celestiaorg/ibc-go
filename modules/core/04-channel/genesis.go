@@ -18,6 +18,7 @@ func InitGenesis(ctx sdk.Context, k keeper.Keeper, gs types.GenesisState) {
 	k.SetParams(ctx, gs.Params)
 	for _, channel := range gs.Channels {
 		ch := types.NewChannel(channel.State, channel.Ordering, channel.Counterparty, channel.ConnectionHops, channel.Version)
+		ch.UpgradeSequence = channel.UpgradeSequence
 		k.SetChannel(ctx, channel.PortId, channel.ChannelId, ch)
 	}
 	for _, ack := range gs.Acknowledgements {
@@ -38,20 +39,40 @@ func InitGenesis(ctx sdk.Context, k keeper.Keeper, gs types.GenesisState) {
 	for _, as := range gs.AckSequences {
 		k.SetNextSequenceAck(ctx, as.PortId, as.ChannelId, as.Sequence)
 	}
+	for _, u := range gs.Upgrades {
+		k.SetUpgrade(ctx, u.PortId, u.ChannelId, u.Upgrade)
+	}
+	for _, u := range gs.CounterpartyUpgrades {
+		k.SetCounterpartyUpgrade(ctx, u.PortId, u.ChannelId, u.Upgrade)
+	}
+	for _, er := range gs.ErrorReceipts {
+		k.SetUpgradeErrorReceipt(ctx, er.PortId, er.ChannelId, er.ErrorReceipt)
+	}
+	for _, ps := range gs.PruningSequenceStarts {
+		k.SetPruningSequenceStart(ctx, ps.PortId, ps.ChannelId, ps.Sequence)
+	}
+	for _, rs := range gs.RecvStartSequences {
+		k.SetRecvStartSequence(ctx, rs.PortId, rs.ChannelId, rs.Sequence)
+	}
 	k.SetNextChannelSequence(ctx, gs.NextChannelSequence)
 }
 
 // ExportGenesis returns the ibc channel submodule's exported genesis.
 func ExportGenesis(ctx sdk.Context, k keeper.Keeper) types.GenesisState {
 	return types.GenesisState{
-		Channels:            k.GetAllChannels(ctx),
-		Acknowledgements:    k.GetAllPacketAcks(ctx),
-		Commitments:         k.GetAllPacketCommitments(ctx),
-		Receipts:            k.GetAllPacketReceipts(ctx),
-		SendSequences:       k.GetAllPacketSendSeqs(ctx),
-		RecvSequences:       k.GetAllPacketRecvSeqs(ctx),
-		AckSequences:        k.GetAllPacketAckSeqs(ctx),
-		NextChannelSequence: k.GetNextChannelSequence(ctx),
-		Params:              k.GetParams(ctx),
+		Channels:              k.GetAllChannels(ctx),
+		Acknowledgements:      k.GetAllPacketAcks(ctx),
+		Commitments:           k.GetAllPacketCommitments(ctx),
+		Receipts:              k.GetAllPacketReceipts(ctx),
+		SendSequences:         k.GetAllPacketSendSeqs(ctx),
+		RecvSequences:         k.GetAllPacketRecvSeqs(ctx),
+		AckSequences:          k.GetAllPacketAckSeqs(ctx),
+		NextChannelSequence:   k.GetNextChannelSequence(ctx),
+		Params:                k.GetParams(ctx),
+		Upgrades:              k.GetAllUpgrades(ctx),
+		CounterpartyUpgrades:  k.GetAllCounterpartyUpgrades(ctx),
+		ErrorReceipts:         k.GetAllUpgradeErrorReceipts(ctx),
+		PruningSequenceStarts: k.GetAllPruningSequenceStarts(ctx),
+		RecvStartSequences:    k.GetAllRecvStartSequences(ctx),
 	}
 }
