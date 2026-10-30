@@ -45,6 +45,7 @@ This file provides guidance for automated agents contributing to this repository
   `feat`, `fix`, `docs`, `test`, `deps`, and `chore`.
 - Breaking changes must use the `(api)!` or `(statemachine)!` suffix.
 - Include the proposed commit message in the pull request description.
+- When you open a PR, assign it to the engineer you are working for (their GitHub login, e.g. from the GitHub `get_me` tool).
 
 Refer to `docs/dev/pull-requests.md` for more details on commit conventions and
 pull request guidelines.
