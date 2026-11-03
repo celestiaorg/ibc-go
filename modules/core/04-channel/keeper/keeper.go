@@ -530,6 +530,7 @@ func (k Keeper) GetUpgradeErrorReceipt(ctx sdk.Context, portID, channelID string
 }
 
 // SetUpgradeErrorReceipt sets the provided error receipt in store using the port and channel identifiers.
+// It is exported for genesis import and tests; handlers write receipts through WriteErrorReceipt.
 func (k Keeper) SetUpgradeErrorReceipt(ctx sdk.Context, portID, channelID string, errorReceipt types.ErrorReceipt) {
 	store := ctx.KVStore(k.storeKey)
 	bz := k.cdc.MustMarshal(&errorReceipt)
@@ -700,6 +701,7 @@ func (k Keeper) HasInflightPackets(ctx sdk.Context, portID, channelID string) bo
 }
 
 // SetRecvStartSequence sets the channel's recv start sequence to the store.
+// It is exported for genesis import and tests; handlers set it when an upgrade opens the channel.
 func (k Keeper) SetRecvStartSequence(ctx sdk.Context, portID, channelID string, sequence uint64) {
 	store := ctx.KVStore(k.storeKey)
 	bz := sdk.Uint64ToBigEndian(sequence)
