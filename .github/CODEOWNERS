@@ -1,6 +1,23 @@
-# CODEOWNERS: https://help.github.com/articles/about-codeowners/
+# CODEOWNERS: <https://help.github.com/articles/about-codeowners/>
 
-*       @gjermundgaraba @srdtrk @DeshErBojhaa
-/docs/  @womensrights
+# The review policy (.github/review-policy.md) auto-approves [low] and [medium]
+# PRs from trusted authors. Because the tag is chosen by the author, the files
+# that define the policy, CI, and agent behavior always need a code owner
+# approval. "Require review from Code Owners" must stay enabled on main for
+# this to be enforced.
 
-# Our appreciation and gratitude to past code owners: @fedekunze @seantking @tmsdkeys @charleenfei @crodriguezvega @colin-axner @chatton @bznein @DimitrisJim @damiannolan @AdityaSripal
+# CI, its build config, repo automation, and the review policy itself,
+# including this file.
+/.github/ @gjermundgaraba @srdtrk @DeshErBojhaa
+/Makefile @gjermundgaraba @srdtrk @DeshErBojhaa
+
+# Agent and reviewer instructions.
+/.agents/ @gjermundgaraba @srdtrk @DeshErBojhaa
+/.claude/ @gjermundgaraba @srdtrk @DeshErBojhaa
+/.cursor/ @gjermundgaraba @srdtrk @DeshErBojhaa
+AGENTS.md @gjermundgaraba @srdtrk @DeshErBojhaa
+CLAUDE.md @gjermundgaraba @srdtrk @DeshErBojhaa
+GEMINI.md @gjermundgaraba @srdtrk @DeshErBojhaa
+
+# The Contributing section defines the [low], [medium], and [high] tiers.
+/CONTRIBUTING.md @gjermundgaraba @srdtrk @DeshErBojhaa
