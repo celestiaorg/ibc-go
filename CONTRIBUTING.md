@@ -59,6 +59,16 @@ If you would like to contribute, follow this process:
 
 Please make sure to check out our [Pull request guidelines](./docs/dev/pull-requests.md) for more information.
 
+#### Review level tags
+
+PR titles must also start the subject with a review level tag, `[high]`, `[medium]`, or `[low]`, to indicate the review thoroughness needed. For example: `fix(04-channel): [high] validate upgrade state` or `docs: [low] clarify setup`.
+
+- `[high]`: Deep review for consensus, state transitions, security, or other changes with significant risk.
+- `[medium]`: Standard review for code changes with limited impact and well-understood behavior.
+- `[low]`: Focused review for straightforward docs, tests, or tooling changes with low risk.
+
+Choose the higher level when unsure. A small diff can still need deep review. CI checks the title format; reviewers should confirm the chosen level. Dependabot titles use `[high]` for Go modules and `[medium]` for GitHub Actions.
+
 #### Unwanted pull requests
 
 To ensure the core maintainers time are spent well, we have certain pull requests we want to avoid:
