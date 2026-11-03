@@ -804,12 +804,15 @@ func (suite *IBCTestSuite) upgradeOutcome(endpoint *ibctesting.Endpoint) []any {
 
 func (suite *IBCTestSuite) TestChannelUpgradeSameOutcomeAfterReimport() {
 	testCases := []struct {
-		name   string
-		build  func(path *ibctesting.Path)
-		step   func(path *ibctesting.Path) error
-		expErr string
+		name     string
+		build    func(path *ibctesting.Path)
+		step     func(path *ibctesting.Path) error
+		expErr   string
+		expState channeltypes.State
 	}{
 		{
+			// ChanUpgradeCancel does not check the channel state, so the cancel
+			// restores a CLOSED channel to OPEN. This is upstream behavior.
 			"cancel on CLOSED with a full upgrade",
 			func(path *ibctesting.Path) {
 				suite.Require().NoError(path.EndpointB.ChanUpgradeInit())
@@ -822,6 +825,7 @@ func (suite *IBCTestSuite) TestChannelUpgradeSameOutcomeAfterReimport() {
 			},
 			func(path *ibctesting.Path) error { return path.EndpointA.ChanUpgradeCancel() },
 			"",
+			channeltypes.OPEN,
 		},
 		{
 			"try with an outdated counterparty sequence panics writing the error receipt",
@@ -834,6 +838,7 @@ func (suite *IBCTestSuite) TestChannelUpgradeSameOutcomeAfterReimport() {
 			},
 			func(path *ibctesting.Path) error { return path.EndpointA.ChanUpgradeTry() },
 			"recovered: error receipt sequence (1) must be greater than existing error receipt sequence (1)",
+			channeltypes.OPEN,
 		},
 	}
 
@@ -864,6 +869,7 @@ func (suite *IBCTestSuite) TestChannelUpgradeSameOutcomeAfterReimport() {
 				suite.Require().ErrorContains(sourceErr, tc.expErr)
 				suite.Require().ErrorContains(importedErr, tc.expErr)
 			}
+			suite.Require().Equal(tc.expState, source.EndpointA.GetChannel().State)
 			suite.Require().Equal(sourceOutcome, suite.upgradeOutcome(imported.EndpointA))
 		})
 	}
