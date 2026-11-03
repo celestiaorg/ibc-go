@@ -364,3 +364,28 @@ func (suite *IBCTestSuite) TestExportGenesis() {
 		})
 	}
 }
+
+func (suite *IBCTestSuite) TestExportGenesisWithoutLocalhost() {
+	suite.coordinator.Setup(ibctesting.NewPath(suite.chainA, suite.chainB))
+
+	ctx := suite.chainA.GetContext()
+	clientKeeper := suite.chainA.App.GetIBCKeeper().ClientKeeper
+	clientKeeper.SetParams(ctx, clienttypes.NewParams(exported.Tendermint))
+	_, found := clientKeeper.GetClientState(ctx, exported.LocalhostClientID)
+	suite.Require().True(found)
+
+	gs := ibc.ExportGenesis(ctx, *suite.chainA.App.GetIBCKeeper())
+	suite.Require().NotEmpty(gs.ClientGenesis.Clients)
+	for _, client := range gs.ClientGenesis.Clients {
+		suite.Require().NotEqual(exported.LocalhostClientID, client.ClientId)
+	}
+	suite.Require().NoError(gs.Validate())
+
+	app := simapp.Setup(suite.T(), false)
+	newCtx := app.BaseApp.NewContext(false)
+	suite.Require().NotPanics(func() {
+		ibc.InitGenesis(newCtx, *app.IBCKeeper, gs)
+	})
+	_, found = app.IBCKeeper.ClientKeeper.GetClientState(newCtx, exported.LocalhostClientID)
+	suite.Require().True(found)
+}
