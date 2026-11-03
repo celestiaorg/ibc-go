@@ -24,13 +24,3 @@ func (k Keeper) ValidateSelfUpgradeFields(ctx sdk.Context, proposedUpgrade types
 func (k Keeper) CheckForUpgradeCompatibility(ctx sdk.Context, upgradeFields, counterpartyUpgradeFields types.UpgradeFields) error {
 	return k.checkForUpgradeCompatibility(ctx, upgradeFields, counterpartyUpgradeFields)
 }
-
-// SetUpgradeErrorReceipt is a wrapper around setUpgradeErrorReceipt to allow the function to be directly called in tests.
-func (k Keeper) SetUpgradeErrorReceipt(ctx sdk.Context, portID, channelID string, errorReceipt types.ErrorReceipt) {
-	k.setUpgradeErrorReceipt(ctx, portID, channelID, errorReceipt)
-}
-
-// SetRecvStartSequence is a wrapper around setRecvStartSequence to allow the function to be directly called in tests.
-func (k Keeper) SetRecvStartSequence(ctx sdk.Context, portID, channelID string, sequence uint64) {
-	k.setRecvStartSequence(ctx, portID, channelID, sequence)
-}

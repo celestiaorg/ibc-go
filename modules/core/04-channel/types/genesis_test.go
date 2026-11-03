@@ -138,6 +138,59 @@ func TestValidateGenesis(t *testing.T) {
 			expPass: false,
 		},
 		{
+			name: "valid upgrade records",
+			genState: types.GenesisState{
+				Upgrades:              []types.IdentifiedUpgrade{types.NewIdentifiedUpgrade(testPort1, testChannel1, types.Upgrade{})},
+				CounterpartyUpgrades:  []types.IdentifiedUpgrade{types.NewIdentifiedUpgrade(testPort1, testChannel1, types.Upgrade{})},
+				ErrorReceipts:         []types.IdentifiedErrorReceipt{types.NewIdentifiedErrorReceipt(testPort1, testChannel1, types.ErrorReceipt{Sequence: 1})},
+				PruningSequenceStarts: []types.PacketSequence{types.NewPacketSequence(testPort1, testChannel1, 1)},
+				RecvStartSequences:    []types.PacketSequence{types.NewPacketSequence(testPort1, testChannel1, 1)},
+			},
+			expPass: true,
+		},
+		{
+			name: "invalid upgrade",
+			genState: types.GenesisState{
+				Upgrades: []types.IdentifiedUpgrade{types.NewIdentifiedUpgrade(testPort1, "(testChannel1)", types.Upgrade{})},
+			},
+			expPass: false,
+		},
+		{
+			name: "invalid counterparty upgrade",
+			genState: types.GenesisState{
+				CounterpartyUpgrades: []types.IdentifiedUpgrade{types.NewIdentifiedUpgrade("(testPort1)", testChannel1, types.Upgrade{})},
+			},
+			expPass: false,
+		},
+		{
+			name: "invalid error receipt",
+			genState: types.GenesisState{
+				ErrorReceipts: []types.IdentifiedErrorReceipt{types.NewIdentifiedErrorReceipt(testPort1, "(testChannel1)", types.ErrorReceipt{Sequence: 1})},
+			},
+			expPass: false,
+		},
+		{
+			name: "invalid pruning sequence start",
+			genState: types.GenesisState{
+				PruningSequenceStarts: []types.PacketSequence{types.NewPacketSequence(testPort1, testChannel1, 0)},
+			},
+			expPass: false,
+		},
+		{
+			name: "valid recv start sequence 0",
+			genState: types.GenesisState{
+				RecvStartSequences: []types.PacketSequence{types.NewPacketSequence(testPort1, testChannel1, 0)},
+			},
+			expPass: true,
+		},
+		{
+			name: "invalid recv start sequence",
+			genState: types.GenesisState{
+				RecvStartSequences: []types.PacketSequence{types.NewPacketSequence(testPort1, "(testChannel1)", 1)},
+			},
+			expPass: false,
+		},
+		{
 			name: "invalid channel identifier",
 			genState: types.NewGenesisState(
 				[]types.IdentifiedChannel{

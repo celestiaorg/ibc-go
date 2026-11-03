@@ -308,6 +308,28 @@ func (k Keeper) GetAllPacketAckSeqs(ctx sdk.Context) (seqs []types.PacketSequenc
 	return seqs
 }
 
+// GetAllPruningSequenceStarts returns all stored pruning sequence starts.
+func (k Keeper) GetAllPruningSequenceStarts(ctx sdk.Context) (seqs []types.PacketSequence) {
+	store := ctx.KVStore(k.storeKey)
+	iterator := storetypes.KVStorePrefixIterator(store, []byte(host.KeyPruningSequenceStart))
+	k.IteratePacketSequence(ctx, iterator, func(portID, channelID string, sequence uint64) bool {
+		seqs = append(seqs, types.NewPacketSequence(portID, channelID, sequence))
+		return false
+	})
+	return seqs
+}
+
+// GetAllRecvStartSequences returns all stored recv start sequences.
+func (k Keeper) GetAllRecvStartSequences(ctx sdk.Context) (seqs []types.PacketSequence) {
+	store := ctx.KVStore(k.storeKey)
+	iterator := storetypes.KVStorePrefixIterator(store, []byte(host.KeyRecvStartSequence))
+	k.IteratePacketSequence(ctx, iterator, func(portID, channelID string, sequence uint64) bool {
+		seqs = append(seqs, types.NewPacketSequence(portID, channelID, sequence))
+		return false
+	})
+	return seqs
+}
+
 // IteratePacketCommitment provides an iterator over all PacketCommitment objects. For each
 // packet commitment, cb will be called. If the cb returns true, the iterator will close
 // and stop.
@@ -507,8 +529,9 @@ func (k Keeper) GetUpgradeErrorReceipt(ctx sdk.Context, portID, channelID string
 	return errorReceipt, true
 }
 
-// setUpgradeErrorReceipt sets the provided error receipt in store using the port and channel identifiers.
-func (k Keeper) setUpgradeErrorReceipt(ctx sdk.Context, portID, channelID string, errorReceipt types.ErrorReceipt) {
+// SetUpgradeErrorReceipt sets the provided error receipt in store using the port and channel identifiers.
+// It is exported for genesis import and tests; handlers write receipts through WriteErrorReceipt.
+func (k Keeper) SetUpgradeErrorReceipt(ctx sdk.Context, portID, channelID string, errorReceipt types.ErrorReceipt) {
 	store := ctx.KVStore(k.storeKey)
 	bz := k.cdc.MustMarshal(&errorReceipt)
 	store.Set(host.ChannelUpgradeErrorKey(portID, channelID), bz)
@@ -586,6 +609,48 @@ func (k Keeper) deleteUpgradeInfo(ctx sdk.Context, portID, channelID string) {
 	k.deleteCounterpartyUpgrade(ctx, portID, channelID)
 }
 
+// iterateUpgradeRecords iterates in key order over all values stored under the given channel upgrade sub-prefix.
+func (k Keeper) iterateUpgradeRecords(ctx sdk.Context, keyPrefix string, cb func(portID, channelID string, bz []byte)) {
+	store := ctx.KVStore(k.storeKey)
+	iterator := storetypes.KVStorePrefixIterator(store, []byte(host.KeyChannelUpgradePrefix+"/"+keyPrefix+"/"))
+
+	defer sdk.LogDeferred(ctx.Logger(), func() error { return iterator.Close() })
+	for ; iterator.Valid(); iterator.Next() {
+		portID, channelID := host.MustParseChannelPath(strings.TrimPrefix(string(iterator.Key()), host.KeyChannelUpgradePrefix+"/"))
+		cb(portID, channelID, iterator.Value())
+	}
+}
+
+// GetAllUpgrades returns all stored channel upgrades.
+func (k Keeper) GetAllUpgrades(ctx sdk.Context) (upgrades []types.IdentifiedUpgrade) {
+	k.iterateUpgradeRecords(ctx, host.KeyUpgradePrefix, func(portID, channelID string, bz []byte) {
+		var upgrade types.Upgrade
+		k.cdc.MustUnmarshal(bz, &upgrade)
+		upgrades = append(upgrades, types.NewIdentifiedUpgrade(portID, channelID, upgrade))
+	})
+	return upgrades
+}
+
+// GetAllCounterpartyUpgrades returns all stored counterparty upgrades.
+func (k Keeper) GetAllCounterpartyUpgrades(ctx sdk.Context) (upgrades []types.IdentifiedUpgrade) {
+	k.iterateUpgradeRecords(ctx, host.KeyCounterpartyUpgrade, func(portID, channelID string, bz []byte) {
+		var upgrade types.Upgrade
+		k.cdc.MustUnmarshal(bz, &upgrade)
+		upgrades = append(upgrades, types.NewIdentifiedUpgrade(portID, channelID, upgrade))
+	})
+	return upgrades
+}
+
+// GetAllUpgradeErrorReceipts returns all stored upgrade error receipts.
+func (k Keeper) GetAllUpgradeErrorReceipts(ctx sdk.Context) (receipts []types.IdentifiedErrorReceipt) {
+	k.iterateUpgradeRecords(ctx, host.KeyUpgradeErrorPrefix, func(portID, channelID string, bz []byte) {
+		var receipt types.ErrorReceipt
+		k.cdc.MustUnmarshal(bz, &receipt)
+		receipts = append(receipts, types.NewIdentifiedErrorReceipt(portID, channelID, receipt))
+	})
+	return receipts
+}
+
 // SetParams sets the channel parameters.
 func (k Keeper) SetParams(ctx sdk.Context, params types.Params) {
 	store := ctx.KVStore(k.storeKey)
@@ -635,8 +700,9 @@ func (k Keeper) HasInflightPackets(ctx sdk.Context, portID, channelID string) bo
 	return iterator.Valid()
 }
 
-// setRecvStartSequence sets the channel's recv start sequence to the store.
-func (k Keeper) setRecvStartSequence(ctx sdk.Context, portID, channelID string, sequence uint64) {
+// SetRecvStartSequence sets the channel's recv start sequence to the store.
+// It is exported for genesis import and tests; handlers set it when an upgrade opens the channel.
+func (k Keeper) SetRecvStartSequence(ctx sdk.Context, portID, channelID string, sequence uint64) {
 	store := ctx.KVStore(k.storeKey)
 	bz := sdk.Uint64ToBigEndian(sequence)
 	store.Set(host.RecvStartSequenceKey(portID, channelID), bz)

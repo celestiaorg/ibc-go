@@ -41,6 +41,24 @@ func (ps PacketSequence) Validate() error {
 	return validateGenFields(ps.PortId, ps.ChannelId, ps.Sequence)
 }
 
+// NewIdentifiedUpgrade creates a new IdentifiedUpgrade instance.
+func NewIdentifiedUpgrade(portID, channelID string, upgrade Upgrade) IdentifiedUpgrade {
+	return IdentifiedUpgrade{
+		PortId:    portID,
+		ChannelId: channelID,
+		Upgrade:   upgrade,
+	}
+}
+
+// NewIdentifiedErrorReceipt creates a new IdentifiedErrorReceipt instance.
+func NewIdentifiedErrorReceipt(portID, channelID string, errorReceipt ErrorReceipt) IdentifiedErrorReceipt {
+	return IdentifiedErrorReceipt{
+		PortId:       portID,
+		ChannelId:    channelID,
+		ErrorReceipt: errorReceipt,
+	}
+}
+
 // NewGenesisState creates a GenesisState instance. It uses the default params.
 // Breakage in v9.0.0 will allow the params to be provided. Please use
 // NewGenesisStateWithParams in this version if you want to provide custom params.
@@ -81,15 +99,20 @@ func NewGenesisStateWithParams(
 // DefaultGenesisState returns the ibc channel submodule's default genesis state.
 func DefaultGenesisState() GenesisState {
 	return GenesisState{
-		Channels:            []IdentifiedChannel{},
-		Acknowledgements:    []PacketState{},
-		Receipts:            []PacketState{},
-		Commitments:         []PacketState{},
-		SendSequences:       []PacketSequence{},
-		RecvSequences:       []PacketSequence{},
-		AckSequences:        []PacketSequence{},
-		NextChannelSequence: 0,
-		Params:              DefaultParams(),
+		Channels:              []IdentifiedChannel{},
+		Acknowledgements:      []PacketState{},
+		Receipts:              []PacketState{},
+		Commitments:           []PacketState{},
+		SendSequences:         []PacketSequence{},
+		RecvSequences:         []PacketSequence{},
+		AckSequences:          []PacketSequence{},
+		NextChannelSequence:   0,
+		Params:                DefaultParams(),
+		Upgrades:              []IdentifiedUpgrade{},
+		CounterpartyUpgrades:  []IdentifiedUpgrade{},
+		ErrorReceipts:         []IdentifiedErrorReceipt{},
+		PruningSequenceStarts: []PacketSequence{},
+		RecvStartSequences:    []PacketSequence{},
 	}
 }
 
@@ -161,18 +184,56 @@ func (gs GenesisState) Validate() error {
 		}
 	}
 
+	for i, u := range gs.Upgrades {
+		if err := validateGenIdentifiers(u.PortId, u.ChannelId); err != nil {
+			return fmt.Errorf("invalid upgrade %v index %d: %w", u, i, err)
+		}
+	}
+
+	for i, u := range gs.CounterpartyUpgrades {
+		if err := validateGenIdentifiers(u.PortId, u.ChannelId); err != nil {
+			return fmt.Errorf("invalid counterparty upgrade %v index %d: %w", u, i, err)
+		}
+	}
+
+	for i, er := range gs.ErrorReceipts {
+		if err := validateGenIdentifiers(er.PortId, er.ChannelId); err != nil {
+			return fmt.Errorf("invalid error receipt %v index %d: %w", er, i, err)
+		}
+	}
+
+	for i, ps := range gs.PruningSequenceStarts {
+		if err := ps.Validate(); err != nil {
+			return fmt.Errorf("invalid pruning sequence start %v index %d: %w", ps, i, err)
+		}
+	}
+
+	// A recv start sequence can be 0: it is copied from the counterparty upgrade without validation.
+	for i, rs := range gs.RecvStartSequences {
+		if err := validateGenIdentifiers(rs.PortId, rs.ChannelId); err != nil {
+			return fmt.Errorf("invalid recv start sequence %v index %d: %w", rs, i, err)
+		}
+	}
+
 	return nil
 }
 
 func validateGenFields(portID, channelID string, sequence uint64) error {
+	if err := validateGenIdentifiers(portID, channelID); err != nil {
+		return err
+	}
+	if sequence == 0 {
+		return errors.New("sequence cannot be 0")
+	}
+	return nil
+}
+
+func validateGenIdentifiers(portID, channelID string) error {
 	if err := host.PortIdentifierValidator(portID); err != nil {
 		return fmt.Errorf("invalid port Id: %w", err)
 	}
 	if err := host.ChannelIdentifierValidator(channelID); err != nil {
 		return fmt.Errorf("invalid channel Id: %w", err)
-	}
-	if sequence == 0 {
-		return errors.New("sequence cannot be 0")
 	}
 	return nil
 }
