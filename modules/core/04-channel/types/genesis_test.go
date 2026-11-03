@@ -382,6 +382,7 @@ func TestValidateUpgradeState(t *testing.T) {
 		{"channel without hops", func(gs *types.GenesisState) { gs.Channels[0].ConnectionHops = nil }, "channel firstport/channel-0: connection hops cannot be empty"},
 		{"upgrade without hops", func(gs *types.GenesisState) { gs.Upgrades[0].Upgrade.Fields.ConnectionHops = nil }, "upgrade firstport/channel-0: connection hops cannot be empty"},
 		{"upgrade with next sequence send 0 and a timeout", func(gs *types.GenesisState) { gs.Upgrades[0].Upgrade.NextSequenceSend = 0 }, "upgrade firstport/channel-0: timeout must be empty when next sequence send is 0"},
+		{"full upgrade without a timeout", func(gs *types.GenesisState) { gs.Upgrades[0].Upgrade.Timeout = types.Timeout{} }, "upgrade firstport/channel-0: timeout cannot be empty when next sequence send is set"},
 		{"upgrade with a wrong next sequence send", func(gs *types.GenesisState) { gs.Upgrades[0].Upgrade.NextSequenceSend = 2 }, "upgrade firstport/channel-0: next sequence send 2 does not match the channel next sequence send 1"},
 		{"full upgrade without a send sequence", func(gs *types.GenesisState) { gs.SendSequences = nil }, "upgrade firstport/channel-0: next sequence send 1 but the channel has no next sequence send"},
 		{"OPEN with a full upgrade", func(gs *types.GenesisState) {

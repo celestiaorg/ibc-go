@@ -283,6 +283,10 @@ func (gs GenesisState) ValidateUpgradeState() error {
 				return fmt.Errorf("upgrade %s/%s: timeout must be empty when next sequence send is 0", u.PortId, u.ChannelId)
 			}
 		} else {
+			// startFlushing always sets an absolute timeout.
+			if !u.Upgrade.Timeout.IsValid() {
+				return fmt.Errorf("upgrade %s/%s: timeout cannot be empty when next sequence send is set", u.PortId, u.ChannelId)
+			}
 			sendSeq, found := sendSeqs[key]
 			if !found {
 				return fmt.Errorf("upgrade %s/%s: next sequence send %d but the channel has no next sequence send", u.PortId, u.ChannelId, u.Upgrade.NextSequenceSend)
