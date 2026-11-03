@@ -1,7 +1,11 @@
+# Each prefix sets the review level tag that lint-pull-request.yml requires. The
+# trailing space stops Dependabot from appending a colon after the tag.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: "/"
+    commit-message:
+      prefix: "chore(deps): [medium] "
     schedule:
       interval: daily
     open-pull-requests-limit: 10
@@ -12,6 +16,8 @@ updates:
       - "/modules/light-clients/08-wasm"
       - "/e2e"
       - "/simapp"
+    commit-message:
+      prefix: "chore(deps): [high] "
     schedule:
       interval: daily
     labels:
