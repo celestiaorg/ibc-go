@@ -218,7 +218,13 @@ func (k Keeper) OnRecvPacket(ctx sdk.Context, packet channeltypes.Packet, data t
 		if !denomTrace.IsNativeDenom() {
 			denom = denomTrace.IBCDenom()
 		}
-		token := sdk.NewCoin(denom, transferAmount)
+		// The counterparty chooses the base denom, so it may not be a valid sdk
+		// denom. This chain cannot have escrowed such a denom, so return an
+		// error; sdk.NewCoin would panic.
+		token := sdk.Coin{Denom: denom, Amount: transferAmount}
+		if err := token.Validate(); err != nil {
+			return errorsmod.Wrapf(types.ErrInvalidDenomForTransfer, "cannot unescrow %s: %s", denom, err)
+		}
 
 		if k.bankKeeper.BlockedAddr(receiver) {
 			return errorsmod.Wrapf(ibcerrors.ErrUnauthorized, "%s is not allowed to receive funds", receiver)
