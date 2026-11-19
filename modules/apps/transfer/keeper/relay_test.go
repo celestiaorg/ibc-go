@@ -329,6 +329,13 @@ func (suite *KeeperTestSuite) TestOnRecvPacket() {
 				expEscrowAmount = sdkmath.NewInt(100)
 			}, true, false,
 		},
+		{
+			"failure: unescrow a base denom that is not a valid sdk denom",
+			func() {
+				trace = types.ParseDenomTrace(types.GetPrefixedDenom(ibctesting.TransferPort, ibctesting.FirstChannelID, "0"))
+				expEscrowAmount = sdkmath.NewInt(100)
+			}, true, false,
+		},
 
 		// - coin being sent to module address on chainA
 		{
