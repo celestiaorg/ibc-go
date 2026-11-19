@@ -157,7 +157,13 @@ func (k *Keeper) OnRecvPacket(
 		// remove prefix added by sender chain
 		token.Denom.Trace = token.Denom.Trace[1:]
 
-		coin := sdk.NewCoin(token.Denom.IBCDenom(), transferAmount)
+		// The counterparty chooses the base denom, so it may not be a valid sdk
+		// denom. This chain cannot have escrowed such a denom, so return an
+		// error; sdk.NewCoin would panic.
+		coin := sdk.Coin{Denom: token.Denom.IBCDenom(), Amount: transferAmount}
+		if err := coin.Validate(); err != nil {
+			return errorsmod.Wrapf(types.ErrInvalidDenomForTransfer, "cannot unescrow %s: %s", coin.Denom, err)
+		}
 
 		escrowAddress := types.GetEscrowAddress(destPort, destChannel)
 		if err := k.UnescrowCoin(ctx, escrowAddress, receiver, coin); err != nil {

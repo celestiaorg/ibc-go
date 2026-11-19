@@ -493,6 +493,13 @@ func (s *KeeperTestSuite) TestOnRecvPacket_ReceiverIsSource() {
 			types.ErrInvalidDenomForTransfer,
 		},
 		{
+			"failure: unescrow a base denom that is not a valid sdk denom",
+			func() {
+				packetData.Token.Denom.Base = "0"
+			},
+			types.ErrInvalidDenomForTransfer,
+		},
+		{
 			"failure: invalid receiver address",
 			func() {
 				packetData.Receiver = "gaia1scqhwpgsmr6vmztaa7suurfl52my6nd2kmrudl"
