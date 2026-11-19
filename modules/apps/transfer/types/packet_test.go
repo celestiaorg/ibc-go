@@ -47,6 +47,15 @@ func TestFungibleTokenPacketDataValidateBasic(t *testing.T) {
 	}
 }
 
+// The error text goes into transfer's error event, so it must print the
+// amount, not the address of the big.Int inside it.
+func TestFungibleTokenPacketDataValidateBasicNonPositiveAmountText(t *testing.T) {
+	for _, amt := range []string{"0", "-1"} {
+		err := types.NewFungibleTokenPacketData(denom, amt, sender, receiver, "").ValidateBasic()
+		require.ErrorContains(t, err, "amount must be strictly positive: got "+amt)
+	}
+}
+
 func (suite *TypesTestSuite) TestGetPacketSender() {
 	packetData := types.FungibleTokenPacketData{
 		Denom:    denom,
