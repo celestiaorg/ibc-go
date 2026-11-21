@@ -5,7 +5,6 @@ run:
 linters:
   disable-all: true
   enable:
-    - exportloopref
     - errcheck
     - gci
     - goconst
@@ -23,7 +22,7 @@ linters:
     - stylecheck
     - revive
     - typecheck
-    - tenv
+    - usetesting
     - unconvert
     # Prefer unparam over revive's unused param. It is more thorough in its checking.
     - unparam
@@ -36,6 +35,11 @@ issues:
       linters:
         - revive
     - text: 'Use of weak random number generator'
+      linters:
+        - gosec
+    # G115 (integer overflow conversion) is new since golangci-lint v1.54.2.
+    # Upstream ibc-go excludes it too.
+    - text: 'G115:'
       linters:
         - gosec
     - linters:
@@ -106,6 +110,16 @@ linters-settings:
         disabled: true
       # Disabled in favour of unparam.
       - name: unused-parameter
+        disabled: true
+      # The rules below are new since golangci-lint v1.54.2 (or fire only
+      # because of Go 1.21+ builtins). Keep them off so the rule set stays as before.
+      - name: unchecked-type-assertion
+        disabled: true
+      - name: use-errors-new
+        disabled: true
+      - name: redundant-import-alias
+        disabled: true
+      - name: redefines-builtin-id
         disabled: true
       - name: unhandled-error
         disabled: false

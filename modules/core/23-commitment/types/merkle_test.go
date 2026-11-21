@@ -66,10 +66,8 @@ func (suite *MerkleTestSuite) TestVerifyMembership() {
 			err := proof.VerifyMembership(types.GetSDKSpecs(), &root, path, tc.value)
 
 			if tc.shouldPass {
-				//nolint: scopelint
 				suite.Require().NoError(err, "test case %d should have passed", i)
 			} else {
-				//nolint: scopelint
 				suite.Require().Error(err, "test case %d should have failed", i)
 			}
 		})
@@ -130,10 +128,8 @@ func (suite *MerkleTestSuite) TestVerifyNonMembership() {
 			err := proof.VerifyNonMembership(types.GetSDKSpecs(), &root, path)
 
 			if tc.shouldPass {
-				//nolint: scopelint
 				suite.Require().NoError(err, "test case %d should have passed", i)
 			} else {
-				//nolint: scopelint
 				suite.Require().Error(err, "test case %d should have failed", i)
 			}
 		})
