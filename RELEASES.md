@@ -77,12 +77,6 @@ Only the following major release series have a stable release status. All missin
 |`v7.2.x`|March 17, 2024|
 |`v7.3.x`|March 17, 2024|
 
-### Callbacks middleware
-
-|Release|End of Life Date|
-|-------|----------------|
-|`v0.1.x-ibc-go-v7.3.x`|August 31, 2024|
-
 ### What pull requests will be included in stable patch-releases?
 
 Pull requests that fix bugs and add features that fall in the following categories:
@@ -121,14 +115,6 @@ Versions of Golang, Cosmos SDK and CometBFT used by ibc-go in the currently acti
 | 1.19 | v7.2.0 | v0.47.3  | v0.37.2  |
 | 1.19 | v7.2.1 | v0.47.3  | v0.37.2  |
 | 1.19 | v7.3.0 | v0.47.4  | v0.37.2  |
-
-### Callbacks middleware
-
-Versions of Golang, ibc-go, Cosmos SDK and CometBFT used by callbacks middleware in the currently active releases:
-
-| Go | callbacks | ibc-go | Cosmos SDK | Tendermint/CometBFT |
-|----|-----------|--------|------------|---------------------|
-| 1.19 | v0.1.0-ibc-go-v7.3 | v7.3.0 | v0.47.4 | v0.37.2 |
 
 ## Graphics
 

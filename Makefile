@@ -141,7 +141,6 @@ tidy-all:
 	@cd simapp && go mod tidy
 	@cd modules/capability && go mod tidy
 	@cd modules/light-clients/08-wasm && go mod tidy
-	@cd modules/apps/callbacks && go mod tidy
 	@echo "All modules tidied successfully"
 
 mod: tidy-all
