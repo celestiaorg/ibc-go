@@ -17,9 +17,11 @@ const (
 	Hyperspace = "hyperspace"
 
 	HermesRelayerRepository = "ghcr.io/informalsystems/hermes"
-	hermesRelayerUser       = "1000:1000"
-	RlyRelayerRepository    = "ghcr.io/cosmos/relayer"
-	rlyRelayerUser          = "100:1000"
+	// Match the Hermes 1.13.1 image user so CLI commands can read the config
+	// and keys written to the relayer's Docker volume.
+	hermesRelayerUser    = "2000:2000"
+	RlyRelayerRepository = "ghcr.io/cosmos/relayer"
+	rlyRelayerUser       = "100:1000"
 
 	// TODO: https://github.com/cosmos/ibc-go/issues/4965
 	HyperspaceRelayerRepository = "ghcr.io/misko9/hyperspace"
