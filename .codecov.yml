@@ -26,10 +26,9 @@ coverage:
           - client
     changes: false
 
-comment:
-  layout: "reach, diff, files"
-  behavior: default # update if exists else create new
-  require_changes: true
+# Do not post a coverage comment on pull requests. Coverage still
+# shows up as commit statuses.
+comment: false
 
 flags:
   app:
