@@ -1,4 +1,4 @@
-FROM golang:1.21-alpine3.18 as builder
+FROM golang:1.24-alpine AS builder
 ARG IBC_GO_VERSION
 
 RUN set -eux; apk add --no-cache git libusb-dev linux-headers gcc musl-dev make;
@@ -23,12 +23,14 @@ COPY go.sum .
 
 RUN go mod download
 
-RUN BUILD_TAGS=muslc make build
+RUN CGO_ENABLED=0 go build -mod=readonly -tags netgo -trimpath \
+    -ldflags "-s -w -X github.com/cosmos/cosmos-sdk/version.Name=sim -X github.com/cosmos/cosmos-sdk/version.AppName=simd -X github.com/cosmos/cosmos-sdk/version.Version=${IBC_GO_VERSION}" \
+    -o /go/build/simd ./testing/simapp/simd
 
-FROM alpine:3.18
+FROM alpine:3.21
 ARG IBC_GO_VERSION
 
-LABEL "org.cosmos.ibc-go" "${IBC_GO_VERSION}"
+LABEL "org.cosmos.ibc-go"="${IBC_GO_VERSION}"
 
 COPY --from=builder /go/build/simd /bin/simd
 

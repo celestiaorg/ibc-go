@@ -50,6 +50,7 @@ Based on upstream `release/v6.2.x`.
 
 ## Contributing
 
+- Docker-based end-to-end tests are maintained on `main`. See [the e2e guide](e2e/README.md) for local runs, image builds and CI coverage.
 - Open PRs against `main`, then backport them to the release branches that celestia-app uses (`release/v8.8.x`, `release/v8.7.x`).
 - PR titles use [conventional commits](https://www.conventionalcommits.org/) with a review level tag (`[low]`, `[medium]` or `[high]`). Add `!` for a consensus-breaking change.
 - A consensus-breaking change needs a new fork version. Do not add it to a tag that a released celestia-app version already uses.
