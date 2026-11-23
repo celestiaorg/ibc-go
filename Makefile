@@ -137,6 +137,7 @@ go.sum: go.mod
 tidy-all:
 	@echo "Running go mod tidy in all modules..."
 	@go mod tidy
+	@cd e2e && go mod tidy
 	@cd simapp && go mod tidy
 	@cd modules/capability && go mod tidy
 	@cd modules/light-clients/08-wasm && go mod tidy

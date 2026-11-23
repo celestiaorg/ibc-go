@@ -16,7 +16,7 @@ import (
 const (
 	testNamePrefix     = "Test"
 	testFileNameSuffix = "_test.go"
-	e2eTestDirectory   = "e2e"
+	e2eTestDirectory   = "e2e/tests"
 	// testEntryPointEnv specifes a single test function to run if provided.
 	testEntryPointEnv = "TEST_ENTRYPOINT"
 	// testExclusionsEnv is a comma separated list of test function names that will not be included
@@ -115,7 +115,10 @@ func getGithubActionMatrixForTests(e2eRootDirectory, testName string, suite stri
 			return fmt.Errorf("failed extracting test suite name and test cases: %s", err)
 		}
 
-		if testName != "" && contains(testName, testCases) {
+		if testName != "" {
+			if !contains(testName, testCases) {
+				return nil
+			}
 			testCases = []string{testName}
 		}
 

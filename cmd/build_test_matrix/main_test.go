@@ -105,6 +105,24 @@ func TestGetGithubActionMatrixForTests(t *testing.T) {
 		assert.Error(t, err)
 	})
 
+	t.Run("single test can be selected without specifying a suite", func(t *testing.T) {
+		testingDir := t.TempDir()
+		createFileWithTestSuiteAndTests(t, "FeeMiddlewareTestSuite", "TestA", "TestB", testingDir, goTestFileNameOne)
+		createFileWithTestSuiteAndTests(t, "TransferTestSuite", "TestC", "TestD", testingDir, goTestFileNameTwo)
+
+		gh, err := getGithubActionMatrixForTests(testingDir, "TestA", "", nil)
+		assert.NoError(t, err)
+		assert.Equal(t, []TestSuitePair{{EntryPoint: "TestFeeMiddlewareTestSuite", Test: "TestA"}}, gh.Include)
+	})
+
+	t.Run("missing test cannot select the only test in a suite", func(t *testing.T) {
+		testingDir := t.TempDir()
+		createFileWithTestSuiteAndTests(t, "TransferTestSuite", "TestA", "Helper", testingDir, goTestFileNameOne)
+
+		_, err := getGithubActionMatrixForTests(testingDir, "TestMissing", "", nil)
+		assert.Error(t, err)
+	})
+
 	t.Run("non test files are not picked up", func(t *testing.T) {
 		testingDir := t.TempDir()
 		createFileWithTestSuiteAndTests(t, "FeeMiddlewareTestSuite", "TestA", "TestB", testingDir, nonTestFile)
