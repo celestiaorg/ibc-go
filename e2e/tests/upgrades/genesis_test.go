@@ -204,7 +204,9 @@ func (s *GenesisTestSuite) HaltChainAndExportGenesis(ctx context.Context, chain 
 	err = chain.StopAllNodes(ctx)
 	s.Require().NoError(err, "error stopping node(s)")
 
-	state, err := chain.ExportState(ctx, haltHeight)
+	// The Celestia SDK halts before executing haltHeight, so the last
+	// committed state is haltHeight-1. Export resumes at that height plus one.
+	state, err := chain.ExportState(ctx, haltHeight-1)
 	s.Require().NoError(err)
 
 	appTomlOverrides := make(test.Toml)
