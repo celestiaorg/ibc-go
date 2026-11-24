@@ -5,6 +5,7 @@ package transfer
 import (
 	"context"
 	"testing"
+	"time"
 
 	test "github.com/strangelove-ventures/interchaintest/v8/testutil"
 	testifysuite "github.com/stretchr/testify/suite"
@@ -53,20 +54,35 @@ func (s *LocalhostTransferTestSuite) TestMsgTransfer_Localhost() {
 
 	s.Require().NoError(test.WaitForBlocks(ctx, 1, chainA), "failed to wait for blocks")
 
-	t.Run("verify begin blocker was executed", func(t *testing.T) {
+	if !s.Run("verify begin blocker was executed", func() {
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+
 		cs, err := query.ClientState(ctx, chainA, exported.LocalhostClientID)
 		s.Require().NoError(err)
 
 		localhostClientState, ok := cs.(*localhost.ClientState)
 		s.Require().True(ok)
 		originalHeight := localhostClientState.LatestHeight
+		latestHeight := originalHeight
 
-		s.Require().NoError(test.WaitForBlocks(ctx, 1, chainA), "failed to wait for blocks")
+		// The consensus RPC height can advance before the application commits.
+		// Poll the client state itself so we wait for a committed height update.
+		err = test.WaitForCondition(30*time.Second, 100*time.Millisecond, func() (bool, error) {
+			cs, err := query.ClientState(ctx, chainA, exported.LocalhostClientID)
+			if err != nil {
+				return false, err
+			}
 
-		cs, err = query.ClientState(ctx, chainA, exported.LocalhostClientID)
-		s.Require().NoError(err)
-		s.Require().True(cs.(*localhost.ClientState).LatestHeight.GT(originalHeight), "client state height was not incremented")
-	})
+			localhostClientState, ok := cs.(*localhost.ClientState)
+			s.Require().True(ok)
+			latestHeight = localhostClientState.LatestHeight
+			return latestHeight.GT(originalHeight), nil
+		})
+		s.Require().NoError(err, "client state height was not incremented: original %s, latest %s", originalHeight, latestHeight)
+	}) {
+		return
+	}
 
 	t.Run("channel open init localhost", func(t *testing.T) {
 		msgChanOpenInit := channeltypes.NewMsgChannelOpenInit(

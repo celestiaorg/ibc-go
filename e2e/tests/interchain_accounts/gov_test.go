@@ -11,6 +11,7 @@ import (
 	"github.com/strangelove-ventures/interchaintest/v8"
 	"github.com/strangelove-ventures/interchaintest/v8/ibc"
 	test "github.com/strangelove-ventures/interchaintest/v8/testutil"
+	"github.com/stretchr/testify/require"
 	testifysuite "github.com/stretchr/testify/suite"
 
 	sdkmath "cosmossdk.io/math"
@@ -110,14 +111,27 @@ func (s *InterchainAccountsGovTestSuite) TestInterchainAccountsGovIntegration() 
 		})
 
 		t.Run("verify tokens transferred", func(t *testing.T) {
-			balance, err := query.Balance(ctx, chainB, chainBAccount.FormattedAddress(), chainB.Config().Denom)
-			s.Require().NoError(err)
+			require := require.New(t)
+			ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			defer cancel()
 
-			_, err = query.Balance(ctx, chainB, interchainAccAddr, chainB.Config().Denom)
-			s.Require().NoError(err)
+			// Passing the proposal on chain A only sends the packet. Wait for
+			// the relayer to deliver it and the transfer to commit on chain B.
+			expected := sdkmath.NewInt(testvalues.IBCTransferAmount + testvalues.StartingTokenAmount)
+			balance := sdkmath.ZeroInt()
+			err := test.WaitForCondition(30*time.Second, 100*time.Millisecond, func() (bool, error) {
+				var err error
+				balance, err = query.Balance(ctx, chainB, chainBAddress, chainB.Config().Denom)
+				if err != nil {
+					return false, err
+				}
+				return balance.Equal(expected), nil
+			})
+			require.NoError(err, "recipient balance did not reach %s: latest %s", expected, balance)
 
-			expected := testvalues.IBCTransferAmount + testvalues.StartingTokenAmount
-			s.Require().Equal(expected, balance.Int64())
+			icaBalance, err := query.Balance(ctx, chainB, interchainAccAddr, chainB.Config().Denom)
+			require.NoError(err)
+			require.Equal(testvalues.StartingTokenAmount-testvalues.IBCTransferAmount, icaBalance.Int64())
 		})
 	})
 }
