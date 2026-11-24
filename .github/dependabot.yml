@@ -29,13 +29,3 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - dependencies
-
-  - package-ecosystem: gomod
-    directory: "/modules/apps/callbacks"
-    commit-message:
-      prefix: "chore(deps): [high] "
-    schedule:
-      interval: daily
-    open-pull-requests-limit: 10
-    labels:
-      - dependencies

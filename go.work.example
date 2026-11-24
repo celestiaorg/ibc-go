@@ -3,6 +3,5 @@ go 1.24.6
 use (
 	./
 	./modules/capability
-	./modules/apps/callbacks
 	./e2e
 )
